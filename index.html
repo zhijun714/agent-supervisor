@@ -1,0 +1,826 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Supervisor</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.min.css" />
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0f1117;
+    --bg2: #161b22;
+    --bg3: #21262d;
+    --border: #30363d;
+    --text: #c9d1d9;
+    --text-dim: #8b949e;
+    --blue: #58a6ff;
+    --green: #3fb950;
+    --amber: #e3b341;
+    --red: #f85149;
+  }
+
+  html, body { height: 100%; background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; font-size: 14px; overflow: hidden; }
+
+  /* ── ROOM LIST ─────────────────────────────────────────────────────────── */
+  #roomListView {
+    height: 100vh; display: flex; flex-direction: column; overflow: hidden;
+  }
+  #roomListHeader {
+    display: flex; align-items: center; gap: 12px;
+    padding: 14px 20px; background: var(--bg2); border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  #roomListHeader h1 { font-size: 15px; font-weight: 600; }
+  #roomListHeader .spacer { flex: 1; }
+  .rl-btn {
+    background: var(--blue); border: none; border-radius: 6px;
+    padding: 6px 14px; color: #fff; font-size: 12px; font-weight: 600; cursor: pointer;
+  }
+  .rl-btn:hover { opacity: 0.88; }
+  .rl-btn.ghost {
+    background: var(--bg3); border: 1px solid var(--border); color: var(--text-dim);
+  }
+  .rl-btn.ghost:hover { border-color: var(--blue); color: var(--blue); }
+
+  #roomCards {
+    flex: 1; overflow-y: auto; padding: 20px;
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 14px; align-content: start;
+  }
+
+  .room-card {
+    background: var(--bg2); border: 1px solid var(--border); border-radius: 10px;
+    padding: 16px; cursor: pointer; transition: border-color 0.15s, box-shadow 0.15s;
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  .room-card:hover { border-color: var(--blue); box-shadow: 0 0 0 1px var(--blue); }
+  .room-card-top { display: flex; align-items: center; gap: 8px; }
+  .room-card-name { font-size: 14px; font-weight: 600; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .room-card-status { display: flex; gap: 6px; }
+  .room-status-dot {
+    width: 7px; height: 7px; border-radius: 50%; background: #484f58; flex-shrink: 0;
+  }
+  .room-status-dot.on { background: var(--green); box-shadow: 0 0 5px var(--green); }
+  .room-status-dot.arch { }
+  .room-card-dirs { display: flex; flex-direction: column; gap: 4px; }
+  .room-card-dir { display: flex; align-items: center; gap: 6px; font-size: 11px; }
+  .room-card-dir-label { font-weight: 600; font-size: 10px; color: #484f58; width: 28px; flex-shrink: 0; }
+  .room-card-dir-label.arch { color: #7c9eff; }
+  .room-card-dir-label.dev  { color: #56d364; }
+  .room-card-dir-path { color: var(--text-dim); font-family: 'SF Mono','Fira Code',monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .room-card-actions { display: flex; gap: 6px; margin-top: 2px; }
+  .room-open-btn {
+    flex: 1; padding: 5px; background: var(--bg3); border: 1px solid var(--border);
+    border-radius: 5px; color: var(--blue); font-size: 11px; font-weight: 600; cursor: pointer;
+  }
+  .room-open-btn:hover { background: var(--border); }
+  .room-delete-btn {
+    padding: 5px 8px; background: transparent; border: 1px solid var(--border);
+    border-radius: 5px; color: var(--text-dim); font-size: 11px; cursor: pointer;
+  }
+  .room-delete-btn:hover { border-color: var(--red); color: var(--red); }
+
+  .room-empty {
+    grid-column: 1/-1; text-align: center; padding: 60px 20px;
+    color: var(--text-dim); font-size: 13px;
+  }
+  .room-empty p { margin-bottom: 16px; }
+
+  /* ── NEW ROOM MODAL ────────────────────────────────────────────────────── */
+  #newRoomModal {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.75);
+    z-index: 200; display: flex; align-items: center; justify-content: center; padding: 20px;
+  }
+  #newRoomInner {
+    background: var(--bg2); border: 1px solid var(--border); border-radius: 10px;
+    padding: 24px; width: min(480px, calc(100vw - 40px));
+  }
+  #newRoomInner h2 { font-size: 14px; font-weight: 600; margin-bottom: 16px; }
+  .nr-field { margin-bottom: 12px; }
+  .nr-field label { display: block; font-size: 11px; color: var(--text-dim); margin-bottom: 5px; }
+  .nr-input {
+    width: 100%; background: var(--bg3); border: 1px solid var(--border); border-radius: 5px;
+    padding: 7px 10px; color: var(--text); font-size: 12px;
+    font-family: 'SF Mono','Fira Code',monospace; outline: none;
+  }
+  .nr-input:focus { border-color: var(--blue); }
+  .nr-name { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; }
+  .nr-row { display: flex; gap: 8px; margin-bottom: 12px; }
+  .nr-silent { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--text-dim); cursor: pointer; white-space: nowrap; }
+  .nr-silent input { accent-color: var(--amber); cursor: pointer; }
+  .nr-actions { display: flex; gap: 8px; margin-top: 16px; }
+  .nr-cancel { flex: 1; padding: 8px; background: var(--bg3); border: 1px solid var(--border); border-radius: 6px; color: var(--text-dim); font-size: 12px; cursor: pointer; }
+  .nr-cancel:hover { border-color: var(--border); color: var(--text); }
+  .nr-create { flex: 2; padding: 8px; background: var(--blue); border: none; border-radius: 6px; color: #fff; font-size: 12px; font-weight: 600; cursor: pointer; }
+  .nr-create:hover { opacity: 0.88; }
+  .nr-create:disabled { opacity: 0.4; cursor: default; }
+
+  /* ── ROOM DETAIL ───────────────────────────────────────────────────────── */
+  #roomDetailView {
+    display: flex; flex-direction: column; height: 100vh; overflow: hidden;
+  }
+
+  #header {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 14px; background: var(--bg2); border-bottom: 1px solid var(--border); flex-shrink: 0;
+  }
+  .hdr-back {
+    background: var(--bg3); border: 1px solid var(--border); border-radius: 5px;
+    padding: 4px 9px; color: var(--text-dim); font-size: 11px; cursor: pointer; white-space: nowrap;
+  }
+  .hdr-back:hover { border-color: var(--blue); color: var(--blue); }
+  #roomNameWrap { display: flex; align-items: center; gap: 4px; min-width: 0; flex-shrink: 0; }
+  #roomNameDisplay { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 160px; cursor: pointer; }
+  #roomNameDisplay:hover { color: var(--blue); }
+  #roomNameInput {
+    display: none; font-size: 13px; font-weight: 600; background: var(--bg3);
+    border: 1px solid var(--blue); border-radius: 4px; padding: 2px 6px; color: var(--text); outline: none; width: 140px;
+  }
+  .hdr-dirs { flex: 1; display: flex; gap: 6px; min-width: 0; overflow: hidden; }
+  .hdr-dir { display: flex; align-items: center; gap: 5px; background: var(--bg3); border: 1px solid var(--border); border-radius: 5px; padding: 4px 9px; min-width: 0; overflow: hidden; flex: 1; }
+  .hdr-dir-label { font-size: 10px; font-weight: 600; white-space: nowrap; flex-shrink: 0; }
+  .hdr-dir-label.arch { color: #7c9eff; }
+  .hdr-dir-label.dev  { color: #56d364; }
+  .hdr-dir-path { font-size: 11px; font-family: 'SF Mono','Fira Code',monospace; color: var(--text-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .hdr-btn { background: var(--bg3); border: 1px solid var(--border); border-radius: 5px; padding: 5px 12px; color: var(--blue); font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+  .hdr-btn:hover { background: var(--border); }
+  #statusDot { width: 8px; height: 8px; border-radius: 50%; background: #484f58; flex-shrink: 0; transition: background 0.3s; }
+  #statusDot.on { background: var(--green); box-shadow: 0 0 6px var(--green); }
+  #statusLabel { font-size: 11px; color: var(--text-dim); white-space: nowrap; }
+
+  #main { display: flex; flex: 1; min-height: 0; overflow: hidden; }
+  .panel { display: flex; flex-direction: column; flex: 1; min-width: 0; overflow: hidden; }
+  .panel + .panel { border-left: 1px solid var(--border); }
+  .panel-header { display: flex; align-items: center; gap: 6px; padding: 6px 12px; background: var(--bg2); border-bottom: 1px solid var(--border); font-size: 12px; font-weight: 600; color: var(--text-dim); flex-shrink: 0; }
+  .panel-header .ph-status { margin-left: auto; font-size: 11px; font-weight: 400; color: var(--green); }
+  .panel-header .ph-reconnect { margin-left: 4px; background: transparent; border: 1px solid var(--border); border-radius: 4px; padding: 2px 8px; color: var(--text-dim); font-size: 11px; cursor: pointer; }
+  .panel-header .ph-reconnect:hover { border-color: var(--blue); color: var(--blue); }
+
+  .term-wrap { flex: 1; min-height: 0; overflow: hidden; background: #0a0e14; cursor: text; outline: 2px solid transparent; transition: outline-color 0.15s; }
+  .term-wrap.focused { outline-color: #58a6ff; }
+  .term-wrap .xterm { height: 100%; padding: 3px 4px; background: #0a0e14; }
+  .term-wrap .xterm-viewport { overflow-y: auto !important; background: #0a0e14 !important; }
+  .term-wrap .xterm-scroll-area { background: #0a0e14 !important; }
+  .term-wrap .xterm-screen { cursor: text; background: #0a0e14; }
+  .term-wrap .xterm-screen canvas { display: block; background: #0a0e14; }
+  .term-wrap .xterm-rows { background: #0a0e14; }
+  .xterm .xterm-helper-textarea { position: fixed !important; left: -4px !important; top: 0 !important; width: 1px !important; height: 1px !important; opacity: 0.001 !important; pointer-events: none !important; z-index: -1 !important; }
+
+  /* ── SESSION PICKER (used in room detail) ──────────────────────────────── */
+  #sessionPicker { position: fixed; inset: 0; background: rgba(0,0,0,0.75); z-index: 100; display: flex; align-items: center; justify-content: center; padding: 20px; }
+  #sessionPickerInner { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 20px; width: min(900px, calc(100vw - 40px)); max-height: calc(100vh - 40px); display: flex; flex-direction: column; overflow: hidden; }
+  #sessionPickerTitle { font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 14px; flex-shrink: 0; }
+  .session-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; flex: 1; min-height: 0; overflow: hidden; }
+  .session-cols > div { min-width: 0; overflow: hidden; display: flex; flex-direction: column; }
+  .session-col-title { font-size: 11px; font-weight: 600; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px; padding-bottom: 5px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+  .session-col-title.arch { color: #7c9eff; }
+  .session-col-title.dev  { color: #56d364; }
+  .session-col-options { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; flex-shrink: 0; }
+  .dir-input { flex: 1; background: var(--bg3); border: 1px solid var(--border); border-radius: 4px; padding: 4px 8px; color: var(--text); font-size: 11px; font-family: 'SF Mono','Fira Code',monospace; outline: none; min-width: 0; }
+  .dir-input:focus { border-color: var(--blue); }
+  .silent-label { display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--text-dim); white-space: nowrap; cursor: pointer; user-select: none; }
+  .silent-label input[type=checkbox] { accent-color: var(--amber); cursor: pointer; }
+  .session-list-inner { display: flex; flex-direction: column; gap: 5px; flex: 1; min-height: 80px; overflow-y: auto; overflow-x: hidden; margin-bottom: 8px; }
+  .session-item { background: var(--bg3); border: 1px solid var(--border); border-radius: 5px; padding: 9px 10px; cursor: pointer; transition: border-color 0.15s; display: flex; align-items: flex-start; gap: 7px; min-width: 0; overflow: hidden; flex-shrink: 0; }
+  .session-item:hover { border-color: var(--blue); }
+  .session-item.selected-arch { border-color: #7c9eff; background: #1a2340; }
+  .session-item.selected-dev  { border-color: #56d364; background: #1a2e1a; }
+  .session-item-text { flex: 1; min-width: 0; overflow: hidden; }
+  .session-item-first { font-size: 12px; color: var(--text); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.4; }
+  .session-item-last  { font-size: 10px; color: var(--text-dim); margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .new-btn { width: 100%; padding: 6px; background: transparent; border: 1px dashed var(--border); color: var(--text-dim); border-radius: 5px; cursor: pointer; font-size: 11px; transition: border-color 0.15s, color 0.15s; flex-shrink: 0; }
+  .new-btn:hover { border-color: var(--green); color: var(--green); }
+  #startBtn { margin-top: 14px; width: 100%; padding: 9px; background: var(--blue); border: none; color: #fff; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 500; flex-shrink: 0; }
+  #startBtn:hover { opacity: 0.88; }
+  #startBtn:disabled { opacity: 0.4; cursor: default; }
+
+  /* ── RELAY BAR ─────────────────────────────────────────────────────────── */
+  #relayBar { display: flex; align-items: center; gap: 8px; padding: 6px 12px; background: var(--bg2); border-top: 1px solid var(--border); flex-shrink: 0; }
+  .relay-btn { background: var(--bg3); border: 1px solid var(--border); border-radius: 5px; padding: 4px 10px; color: var(--text-dim); font-size: 11px; font-weight: 500; cursor: pointer; white-space: nowrap; transition: border-color 0.15s, color 0.15s; }
+  .relay-btn:hover { border-color: var(--blue); color: var(--blue); }
+  .relay-btn.ok  { border-color: var(--green); color: var(--green); }
+  .relay-btn.err { border-color: var(--red);   color: var(--red); }
+  #inboxBadge { font-size: 10px; padding: 2px 7px; border-radius: 10px; background: rgba(227,179,65,0.15); border: 1px solid rgba(227,179,65,0.4); color: var(--amber); white-space: nowrap; display: none; }
+  #watchdogBtn.active { border-color: var(--green); color: var(--green); }
+  #watchdogBadge { font-size: 10px; padding: 2px 7px; border-radius: 10px; background: rgba(248,81,73,0.12); border: 1px solid rgba(248,81,73,0.35); color: var(--red); white-space: nowrap; display: none; }
+  #watchdogBadge.done { background: rgba(63,185,80,0.12); border-color: rgba(63,185,80,0.4); color: var(--green); }
+
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<!-- ── ROOM LIST VIEW ────────────────────────────────────────────────────── -->
+<div id="roomListView" style="display:none">
+  <div id="roomListHeader">
+    <h1>🏗 Supervisor</h1>
+    <span class="spacer"></span>
+    <button class="rl-btn" id="newRoomBtn">+ New Room</button>
+  </div>
+  <div id="roomCards"></div>
+</div>
+
+<!-- ── NEW ROOM MODAL ───────────────────────────────────────────────────── -->
+<div id="newRoomModal" style="display:none">
+  <div id="newRoomInner">
+    <h2>New Room</h2>
+    <div class="nr-field">
+      <label>Room Name</label>
+      <input class="nr-input nr-name" id="nrName" type="text" placeholder="My Project" />
+    </div>
+    <div class="nr-field">
+      <label>Architect Directory</label>
+      <div class="nr-row">
+        <input class="nr-input" id="nrArchDir" type="text" placeholder="/path/to/project" spellcheck="false" />
+        <label class="nr-silent"><input type="checkbox" id="nrArchSilent" /> 静默</label>
+      </div>
+    </div>
+    <div class="nr-field">
+      <label>Developer Directory</label>
+      <div class="nr-row">
+        <input class="nr-input" id="nrDevDir" type="text" placeholder="/path/to/project" spellcheck="false" />
+        <label class="nr-silent"><input type="checkbox" id="nrDevSilent" /> 静默</label>
+      </div>
+    </div>
+    <div class="nr-actions">
+      <button class="nr-cancel" id="nrCancel">Cancel</button>
+      <button class="nr-create" id="nrCreate">Create Room</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── ROOM DETAIL VIEW ─────────────────────────────────────────────────── -->
+<div id="roomDetailView" style="display:none">
+
+  <div id="header">
+    <button class="hdr-back" id="backBtn">← Rooms</button>
+    <div id="roomNameWrap">
+      <span id="roomNameDisplay" title="Click to rename">—</span>
+      <input id="roomNameInput" type="text" />
+    </div>
+    <div class="hdr-dirs">
+      <div class="hdr-dir">
+        <span class="hdr-dir-label arch">Arch</span>
+        <span class="hdr-dir-path" id="archDirDisplay">—</span>
+      </div>
+      <div class="hdr-dir">
+        <span class="hdr-dir-label dev">Dev</span>
+        <span class="hdr-dir-path" id="devDirDisplay">—</span>
+      </div>
+    </div>
+    <button class="hdr-btn" id="connectBtn">Sessions</button>
+    <div id="statusDot"></div>
+    <span id="statusLabel">Disconnected</span>
+  </div>
+
+  <!-- SESSION PICKER -->
+  <div id="sessionPicker" style="display:none">
+    <div id="sessionPickerInner">
+      <div id="sessionPickerTitle">Sessions <span style="font-weight:400;font-size:11px;color:var(--text-dim)">— 选择或新建会话，然后点击开始</span></div>
+      <div class="session-cols">
+        <div>
+          <div class="session-col-title arch">🏛 架构师</div>
+          <div class="session-col-options">
+            <input class="dir-input" id="archDirInput" type="text" placeholder="/path/to/project" spellcheck="false" />
+            <label class="silent-label" title="--dangerouslySkipPermissions"><input type="checkbox" id="archSilentChk" /> 静默</label>
+          </div>
+          <div class="session-list-inner" id="archSessionList"></div>
+          <button class="new-btn" id="newArchBtn">＋ 新建架构师会话</button>
+        </div>
+        <div>
+          <div class="session-col-title dev">🧑‍💻 开发者</div>
+          <div class="session-col-options">
+            <input class="dir-input" id="devDirInput" type="text" placeholder="/path/to/project" spellcheck="false" />
+            <label class="silent-label" title="--dangerouslySkipPermissions"><input type="checkbox" id="devSilentChk" /> 静默</label>
+          </div>
+          <div class="session-list-inner" id="devSessionList"></div>
+          <button class="new-btn" id="newDevBtn">＋ 新建开发者会话</button>
+        </div>
+      </div>
+      <button id="startBtn" disabled>开始</button>
+    </div>
+  </div>
+
+  <div id="main">
+    <div class="panel" id="leftPanel">
+      <div class="panel-header">
+        🏛 Architect
+        <span class="ph-status" id="archStatus"></span>
+        <button class="ph-reconnect" id="archReconnect" title="Reconnect">⟳</button>
+      </div>
+      <div class="term-wrap" id="archTermEl"></div>
+    </div>
+    <div class="panel" id="rightPanel">
+      <div class="panel-header">
+        🧑‍💻 Developer
+        <span class="ph-status" id="devStatus"></span>
+        <button class="ph-reconnect" id="devReconnect" title="Reconnect">⟳</button>
+      </div>
+      <div class="term-wrap" id="devTermEl"></div>
+    </div>
+  </div>
+
+  <div id="relayBar">
+    <span id="inboxBadge"></span>
+    <button class="relay-btn" id="devToArchBtn" title="手动触发架构师审查">📋 Dev → Arch 审查</button>
+    <button class="relay-btn" id="watchdogBtn" title="定时检查任务是否停滞（10分钟一次）">⏱ Watchdog</button>
+    <span id="watchdogBadge"></span>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.min.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  function escHtml(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  // ── Route: room list vs room detail ───────────────────────────────────────
+  const roomId = new URLSearchParams(location.search).get('room');
+  if (roomId) {
+    document.getElementById('roomDetailView').style.display = 'flex';
+    initRoomDetail(roomId);
+  } else {
+    document.getElementById('roomListView').style.display = 'flex';
+    initRoomList();
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // ROOM LIST
+  // ══════════════════════════════════════════════════════════════════════════
+  function initRoomList() {
+    const roomCards  = document.getElementById('roomCards');
+    const newRoomBtn = document.getElementById('newRoomBtn');
+    const modal      = document.getElementById('newRoomModal');
+    const nrName     = document.getElementById('nrName');
+    const nrArchDir  = document.getElementById('nrArchDir');
+    const nrDevDir   = document.getElementById('nrDevDir');
+    const nrArchSilent = document.getElementById('nrArchSilent');
+    const nrDevSilent  = document.getElementById('nrDevSilent');
+    const nrCancel   = document.getElementById('nrCancel');
+    const nrCreate   = document.getElementById('nrCreate');
+
+    let pollTimer = null;
+
+    async function loadRooms() {
+      try {
+        const list = await fetch('/rooms').then(r => r.json());
+        renderRooms(list);
+      } catch {}
+    }
+
+    function renderRooms(list) {
+      roomCards.innerHTML = '';
+      if (!list.length) {
+        roomCards.innerHTML = `<div class="room-empty"><p>还没有任何 Room</p><button class="rl-btn" onclick="document.getElementById('newRoomBtn').click()">+ 创建第一个 Room</button></div>`;
+        return;
+      }
+      for (const r of list) {
+        const card = document.createElement('div');
+        card.className = 'room-card';
+        card.innerHTML = `
+          <div class="room-card-top">
+            <div class="room-card-name">${escHtml(r.name)}</div>
+            <div class="room-card-status">
+              <div class="room-status-dot arch ${r.archAlive ? 'on' : ''}" title="Arch ${r.archAlive ? 'running' : 'stopped'}"></div>
+              <div class="room-status-dot ${r.devAlive ? 'on' : ''}" title="Dev ${r.devAlive ? 'running' : 'stopped'}"></div>
+            </div>
+          </div>
+          <div class="room-card-dirs">
+            <div class="room-card-dir"><span class="room-card-dir-label arch">Arch</span><span class="room-card-dir-path">${escHtml(r.archDir)}</span></div>
+            <div class="room-card-dir"><span class="room-card-dir-label dev">Dev</span><span class="room-card-dir-path">${escHtml(r.devDir)}</span></div>
+          </div>
+          <div class="room-card-actions">
+            <button class="room-open-btn">Open →</button>
+            <button class="room-delete-btn" title="Delete room">✕</button>
+          </div>`;
+        card.querySelector('.room-open-btn').addEventListener('click', (e) => {
+          e.stopPropagation();
+          location.href = '/?room=' + r.id;
+        });
+        card.querySelector('.room-delete-btn').addEventListener('click', async (e) => {
+          e.stopPropagation();
+          if (!confirm(`Delete room "${r.name}"? Running terminals will be killed.`)) return;
+          await fetch('/rooms/' + r.id, { method: 'DELETE' });
+          loadRooms();
+        });
+        card.addEventListener('click', () => { location.href = '/?room=' + r.id; });
+        roomCards.appendChild(card);
+      }
+    }
+
+    // Poll for status updates every 3s while on room list
+    loadRooms();
+    pollTimer = setInterval(loadRooms, 3000);
+    window.addEventListener('beforeunload', () => clearInterval(pollTimer));
+
+    // New room modal
+    newRoomBtn.addEventListener('click', () => {
+      nrName.value = ''; nrArchDir.value = ''; nrDevDir.value = '';
+      nrArchSilent.checked = false; nrDevSilent.checked = false;
+      modal.style.display = 'flex';
+      setTimeout(() => nrName.focus(), 50);
+    });
+    nrCancel.addEventListener('click', () => { modal.style.display = 'none'; });
+    modal.addEventListener('click', (e) => { if (e.target === modal) modal.style.display = 'none'; });
+
+    nrCreate.addEventListener('click', async () => {
+      const archDir = nrArchDir.value.trim();
+      const devDir  = nrDevDir.value.trim();
+      if (!archDir || !devDir) { alert('请填写两个目录'); return; }
+      nrCreate.disabled = true; nrCreate.textContent = '创建中…';
+      try {
+        const r = await fetch('/rooms', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: nrName.value.trim() || 'New Room', archDir, devDir, archSilent: nrArchSilent.checked, devSilent: nrDevSilent.checked }),
+        });
+        if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.error || r.statusText); }
+        const { room } = await r.json();
+        modal.style.display = 'none';
+        location.href = '/?room=' + room.id;
+      } catch (e) {
+        alert('创建失败: ' + e.message);
+        nrCreate.disabled = false; nrCreate.textContent = 'Create Room';
+      }
+    });
+
+    // Enter key in modal fields
+    [nrName, nrArchDir, nrDevDir].forEach(el => el.addEventListener('keydown', e => { if (e.key === 'Enter') nrCreate.click(); }));
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // ROOM DETAIL
+  // ══════════════════════════════════════════════════════════════════════════
+  function initRoomDetail(roomId) {
+    const ARCH_TERM_ID = roomId + '-arch';
+    const DEV_TERM_ID  = roomId + '-dev';
+
+    const XTERM_THEME = {
+      background:'#0a0e14', foreground:'#c9d1d9', cursor:'#58a6ff', cursorAccent:'#0a0e14',
+      selectionBackground:'rgba(88,166,255,0.2)',
+      black:'#0d1117', red:'#f85149', green:'#3fb950', yellow:'#e3b341',
+      blue:'#58a6ff', magenta:'#bc8cff', cyan:'#39c5cf', white:'#c9d1d9',
+      brightBlack:'#484f58', brightRed:'#ff7b72', brightGreen:'#56d364',
+      brightYellow:'#e3b341', brightBlue:'#79c0ff', brightMagenta:'#d2a8ff',
+      brightCyan:'#56d4dd', brightWhite:'#f0f6fc',
+    };
+
+    function createTerminal(containerId) {
+      const container = document.getElementById(containerId);
+      const term = new Terminal({
+        theme: XTERM_THEME, fontFamily: '"SF Mono","Fira Code","Cascadia Code",Menlo,monospace',
+        fontSize: 13, lineHeight: 1.25, cursorBlink: true, scrollback: 10000, allowTransparency: false,
+      });
+      const fitAddon = new FitAddon.FitAddon();
+      term.loadAddon(fitAddon);
+      term.open(container);
+      requestAnimationFrame(() => { try { fitAddon.fit(); } catch(e){} });
+      const ro = new ResizeObserver(() => { try { fitAddon.fit(); } catch(e){} });
+      ro.observe(container);
+      const obj = { term, fitAddon, ws: null };
+      container.addEventListener('mousedown', () => { term.focus(); container.classList.add('focused'); });
+      container.addEventListener('click', () => term.focus());
+      requestAnimationFrame(() => {
+        const ta = container.querySelector('.xterm-helper-textarea');
+        if (ta) {
+          ta.addEventListener('focus', () => container.classList.add('focused'));
+          ta.addEventListener('blur',  () => container.classList.remove('focused'));
+        }
+      });
+      term.onData(data => { if (obj.ws && obj.ws.readyState === 1) obj.ws.send(data); });
+      term.onResize(({ cols, rows }) => { if (obj.ws && obj.ws.readyState === 1) obj.ws.send(JSON.stringify({ type: 'resize', cols, rows })); });
+      return obj;
+    }
+
+    const archObj = createTerminal('archTermEl');
+    const devObj  = createTerminal('devTermEl');
+
+    const archStatus = document.getElementById('archStatus');
+    const devStatus  = document.getElementById('devStatus');
+    const archReconn = document.getElementById('archReconnect');
+    const devReconn  = document.getElementById('devReconnect');
+
+    function connectPtyWs(obj, termId, statusEl) {
+      if (obj.ws) { try { obj.ws.close(); } catch(e){} obj.ws = null; }
+      if (statusEl) statusEl.textContent = '⟳ 连接中…';
+      const ws = new WebSocket('ws://localhost:3458/pty/' + termId);
+      ws.binaryType = 'arraybuffer';
+      obj.ws = ws;
+      ws.onopen = () => {
+        ws.send(JSON.stringify({ type: 'resize', cols: obj.term.cols, rows: obj.term.rows }));
+        if (statusEl) statusEl.textContent = '● connected';
+        ws.onmessage = evt => obj.term.write(evt.data instanceof ArrayBuffer ? new Uint8Array(evt.data) : evt.data);
+        ws.onclose = evt => { obj.ws = null; if (statusEl) statusEl.textContent = evt.code === 4001 ? '○ 未启动' : '○ disconnected'; };
+      };
+      ws.onclose = evt => {
+        obj.ws = null;
+        if (statusEl) statusEl.textContent = evt.code === 4001 ? '○ 未启动' : '○ disconnected';
+      };
+    }
+
+    archReconn.addEventListener('click', () => connectPtyWs(archObj, ARCH_TERM_ID, archStatus));
+    devReconn.addEventListener('click',  () => connectPtyWs(devObj,  DEV_TERM_ID,  devStatus));
+
+    // ── Event WS ────────────────────────────────────────────────────────────
+    const statusDot   = document.getElementById('statusDot');
+    const statusLabel = document.getElementById('statusLabel');
+    let eventWs = null;
+    function connectEventWs() {
+      if (eventWs) { try { eventWs.close(); } catch(e){} }
+      eventWs = new WebSocket('ws://localhost:3458');
+      eventWs.onopen  = () => { statusDot.classList.add('on'); statusLabel.textContent = 'Connected'; };
+      eventWs.onclose = () => { statusDot.classList.remove('on'); statusLabel.textContent = 'Disconnected'; setTimeout(connectEventWs, 3000); };
+      eventWs.onmessage = evt => {
+        try {
+          const d = JSON.parse(evt.data);
+          if (d.type === 'inbox_delivered' || d.type === 'inbox_queued') {
+            // Only show badge for events in this room
+            if (d.to && d.to.startsWith(roomId)) showInboxBadge(d.from, d.to, d.queueLen);
+          }
+          if (d.type === 'pty_exited') {
+            if (d.termId === ARCH_TERM_ID && archStatus) archStatus.textContent = '○ exited';
+            if (d.termId === DEV_TERM_ID  && devStatus)  devStatus.textContent  = '○ exited';
+          }
+          if (d.type === 'watchdog_status' && d.roomId === roomId) {
+            setWatchdogUI(d.enabled);
+          }
+          if (d.type === 'watchdog_triggered' && d.roomId === roomId) {
+            const parts = d.issues.map(i => {
+              const who = i.role === 'arch' ? '架构师' : '开发者';
+              if (i.issue === 'exited') return `${who} 进程已退出`;
+              if (i.issue === 'idle')   return `${who} 停滞 ${i.idleMin}min`;
+              return `${who} ${i.issue}`;
+            });
+            showWatchdogBadge('⏱ ' + parts.join(' / '), false);
+          }
+          if (d.type === 'watchdog_done' && d.roomId === roomId) {
+            setWatchdogUI(false);
+            showWatchdogBadge('✓ 任务已完成，Watchdog 已停止', true);
+          }
+        } catch {}
+      };
+    }
+
+    // ── Room name editing ────────────────────────────────────────────────────
+    const roomNameDisplay = document.getElementById('roomNameDisplay');
+    const roomNameInput   = document.getElementById('roomNameInput');
+    const archDirDisplay  = document.getElementById('archDirDisplay');
+    const devDirDisplay   = document.getElementById('devDirDisplay');
+
+    let currentRoom = null;
+    async function loadRoom() {
+      try {
+        const rooms = await fetch('/rooms').then(r => r.json());
+        currentRoom = rooms.find(r => r.id === roomId);
+        if (!currentRoom) { alert('Room not found'); location.href = '/'; return null; }
+        roomNameDisplay.textContent = currentRoom.name;
+        archDirDisplay.textContent  = currentRoom.archDir;
+        devDirDisplay.textContent   = currentRoom.devDir;
+        document.title = 'Supervisor — ' + currentRoom.name;
+        archDirInput.value  = currentRoom.archDir;
+        devDirInput.value   = currentRoom.devDir;
+        archSilentChk.checked = currentRoom.archSilent;
+        devSilentChk.checked  = currentRoom.devSilent;
+        setWatchdogUI(currentRoom.watchdogEnabled || false);
+        return currentRoom;
+      } catch { return null; }
+    }
+
+    roomNameDisplay.addEventListener('click', () => {
+      roomNameInput.value = roomNameDisplay.textContent;
+      roomNameDisplay.style.display = 'none';
+      roomNameInput.style.display = 'block';
+      roomNameInput.focus(); roomNameInput.select();
+    });
+    async function saveRoomName() {
+      const name = roomNameInput.value.trim() || currentRoom?.name || 'Room';
+      roomNameDisplay.textContent = name;
+      roomNameInput.style.display = 'none';
+      roomNameDisplay.style.display = '';
+      if (name !== currentRoom?.name) {
+        await fetch('/rooms/' + roomId, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) }).catch(() => {});
+        if (currentRoom) currentRoom.name = name;
+        document.title = 'Supervisor — ' + name;
+      }
+    }
+    roomNameInput.addEventListener('blur', saveRoomName);
+    roomNameInput.addEventListener('keydown', e => { if (e.key === 'Enter') roomNameInput.blur(); if (e.key === 'Escape') { roomNameInput.style.display = 'none'; roomNameDisplay.style.display = ''; } });
+
+    // ── Back button ──────────────────────────────────────────────────────────
+    document.getElementById('backBtn').addEventListener('click', () => { location.href = '/'; });
+
+    // ── Session picker ───────────────────────────────────────────────────────
+    const connectBtn      = document.getElementById('connectBtn');
+    const sessionPicker   = document.getElementById('sessionPicker');
+    const archSessionList = document.getElementById('archSessionList');
+    const devSessionListEl= document.getElementById('devSessionList');
+    const archDirInput    = document.getElementById('archDirInput');
+    const devDirInput     = document.getElementById('devDirInput');
+    const archSilentChk   = document.getElementById('archSilentChk');
+    const devSilentChk    = document.getElementById('devSilentChk');
+    const newArchBtn      = document.getElementById('newArchBtn');
+    const newDevBtn       = document.getElementById('newDevBtn');
+    const startBtn        = document.getElementById('startBtn');
+
+    let selectedArch = null;
+    let selectedDev  = null;
+
+    let _archDirTimer = null, _devDirTimer = null;
+    archDirInput.addEventListener('input', () => {
+      selectedArch = null; updateStartBtn();
+      clearTimeout(_archDirTimer);
+      _archDirTimer = setTimeout(() => loadSessionsFor('arch', archDirInput.value.trim()), 400);
+    });
+    devDirInput.addEventListener('input', () => {
+      selectedDev = null; updateStartBtn();
+      clearTimeout(_devDirTimer);
+      _devDirTimer = setTimeout(() => loadSessionsFor('dev', devDirInput.value.trim()), 400);
+    });
+
+    function updateStartBtn() {
+      startBtn.disabled = false;
+      const a = selectedArch ? selectedArch.slice(0, 8) + '…' : '新建';
+      const d = selectedDev  ? selectedDev.slice(0, 8)  + '…' : '新建';
+      startBtn.textContent = `开始  (Arch: ${a}  /  Dev: ${d})`;
+    }
+    archSilentChk.addEventListener('change', updateStartBtn);
+    devSilentChk.addEventListener('change',  updateStartBtn);
+
+    function buildSessionItem(s, role) {
+      const item = document.createElement('div');
+      item.className = 'session-item';
+      const dateStr = s.lastTs ? new Date(s.lastTs).toLocaleString('zh-CN', { month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' }) : '';
+      item.innerHTML = `<div class="session-item-text"><div class="session-item-first">${escHtml(s.firstPrompt || '(无标题)')}</div><div class="session-item-last">${dateStr ? escHtml(dateStr) + ' · ' : ''}${escHtml(s.lastPrompt || '-')}</div></div>`;
+      item.addEventListener('click', () => {
+        const col = role === 'arch' ? archSessionList : devSessionListEl;
+        col.querySelectorAll('.session-item').forEach(el => el.classList.remove('selected-arch', 'selected-dev'));
+        item.classList.add(role === 'arch' ? 'selected-arch' : 'selected-dev');
+        if (role === 'arch') selectedArch = s.sessionId; else selectedDev = s.sessionId;
+        updateStartBtn();
+      });
+      return item;
+    }
+
+    async function loadSessionsFor(role, dir) {
+      const listEl = role === 'arch' ? archSessionList : devSessionListEl;
+      if (!dir) { listEl.innerHTML = '<div style="color:var(--text-dim);font-size:11px;padding:4px 0">请输入目录</div>'; return; }
+      listEl.innerHTML = '<div style="color:var(--text-dim);font-size:11px;padding:4px">加载中…</div>';
+      if (role === 'arch') selectedArch = null; else selectedDev = null;
+      updateStartBtn();
+      try {
+        const list = await fetch('/sessions?projectDir=' + encodeURIComponent(dir)).then(r => r.json());
+        listEl.innerHTML = '';
+        if (!list.length) listEl.innerHTML = '<div style="color:var(--text-dim);font-size:11px;padding:4px 0">暂无历史会话</div>';
+        else list.forEach(s => listEl.appendChild(buildSessionItem(s, role)));
+      } catch { listEl.innerHTML = '<div style="color:#f85149;font-size:11px">加载失败</div>'; }
+    }
+
+    connectBtn.addEventListener('click', () => {
+      selectedArch = null; selectedDev = null; updateStartBtn();
+      loadSessionsFor('arch', archDirInput.value.trim());
+      loadSessionsFor('dev',  devDirInput.value.trim());
+      sessionPicker.style.display = 'flex';
+    });
+    sessionPicker.addEventListener('click', e => { if (e.target === sessionPicker) sessionPicker.style.display = 'none'; });
+    newArchBtn.addEventListener('click', () => { archSessionList.querySelectorAll('.session-item').forEach(el => el.classList.remove('selected-arch')); selectedArch = null; updateStartBtn(); });
+    newDevBtn.addEventListener('click',  () => { devSessionListEl.querySelectorAll('.session-item').forEach(el => el.classList.remove('selected-dev')); selectedDev  = null; updateStartBtn(); });
+
+    startBtn.addEventListener('click', async () => {
+      const archDir = archDirInput.value.trim();
+      const devDir  = devDirInput.value.trim();
+      if (!archDir || !devDir) { alert('请填写两个目录'); return; }
+
+      sessionPicker.style.display = 'none';
+      archObj.term.focus();
+      try { archObj.fitAddon.fit(); } catch(e) {}
+      try { devObj.fitAddon.fit();  } catch(e) {}
+
+      // Update room dirs if changed
+      if (currentRoom && (archDir !== currentRoom.archDir || devDir !== currentRoom.devDir ||
+          archSilentChk.checked !== currentRoom.archSilent || devSilentChk.checked !== currentRoom.devSilent)) {
+        await fetch('/rooms/' + roomId, {
+          method: 'PUT', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ archDir, devDir, archSilent: archSilentChk.checked, devSilent: devSilentChk.checked }),
+        }).catch(() => {});
+        currentRoom.archDir = archDir; currentRoom.devDir = devDir;
+        archDirDisplay.textContent = archDir; devDirDisplay.textContent = devDir;
+      }
+
+      const cols = Math.min(archObj.term.cols, devObj.term.cols);
+      const rows = Math.min(archObj.term.rows, devObj.term.rows);
+
+      try {
+        const r = await fetch('/rooms/' + roomId + '/spawn', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ archSessionId: selectedArch || null, devSessionId: selectedDev || null, cols, rows }),
+        });
+        if (!r.ok) { const err = await r.json().catch(() => ({})); throw new Error(err.error || r.statusText); }
+      } catch (e) {
+        sessionPicker.style.display = 'flex';
+        alert('启动失败: ' + e.message); return;
+      }
+      connectPtyWs(archObj, ARCH_TERM_ID, archStatus);
+      connectPtyWs(devObj,  DEV_TERM_ID,  devStatus);
+    });
+
+    // ── Relay bar ────────────────────────────────────────────────────────────
+    const inboxBadge    = document.getElementById('inboxBadge');
+    const devToArchBtn  = document.getElementById('devToArchBtn');
+    const watchdogBtn   = document.getElementById('watchdogBtn');
+    const watchdogBadge = document.getElementById('watchdogBadge');
+    let inboxBadgeTimer    = null;
+    let watchdogBadgeTimer = null;
+    let watchdogActive     = false;
+
+    function showInboxBadge(from, to, queueLen) {
+      clearTimeout(inboxBadgeTimer);
+      const fromRole = from === 'arch' ? 'Arch' : (from === 'dev' ? 'Dev' : from);
+      const toRole   = to.endsWith('-arch') ? 'Arch' : 'Dev';
+      const arrow    = `${fromRole} → ${toRole}`;
+      inboxBadge.textContent = queueLen ? `${arrow} (queued: ${queueLen})` : `${arrow} ✓`;
+      inboxBadge.style.display = 'inline-block';
+      inboxBadgeTimer = setTimeout(() => { inboxBadge.style.display = 'none'; }, 4000);
+    }
+
+    function flashBtn(btn, ok) {
+      btn.classList.add(ok ? 'ok' : 'err');
+      setTimeout(() => btn.classList.remove('ok', 'err'), 1400);
+    }
+
+    function setWatchdogUI(enabled) {
+      watchdogActive = enabled;
+      watchdogBtn.textContent = enabled ? '⏱ 监控中 ⏹' : '⏱ Watchdog';
+      watchdogBtn.classList.toggle('active', enabled);
+    }
+
+    watchdogBtn.addEventListener('click', async () => {
+      const next = !watchdogActive;
+      try {
+        const r = await fetch('/rooms/' + roomId + '/watchdog', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ enabled: next }),
+        });
+        if (r.ok) setWatchdogUI(next);
+      } catch {}
+    });
+
+    function showWatchdogBadge(msg, isDone) {
+      clearTimeout(watchdogBadgeTimer);
+      watchdogBadge.textContent = msg;
+      watchdogBadge.className = isDone ? 'done' : '';
+      watchdogBadge.style.display = 'inline-block';
+      watchdogBadgeTimer = setTimeout(() => { watchdogBadge.style.display = 'none'; }, 8000);
+    }
+
+    devToArchBtn.addEventListener('click', async () => {
+      try {
+        const { text } = await fetch('/pty/buffer?termId=' + DEV_TERM_ID).then(r => r.json());
+        if (!text.trim()) { flashBtn(devToArchBtn, false); return; }
+        const res = await fetch('/notify', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ to: 'arch', roomId, message: '[MANUAL REVIEW] Developer latest activity:\n' + text.trim().slice(-2000) }),
+        });
+        flashBtn(devToArchBtn, res.ok);
+      } catch { flashBtn(devToArchBtn, false); }
+    });
+
+    // ── Init: load room, connect event WS, auto-connect PTY WS ──────────────
+    async function init() {
+      const room = await loadRoom();
+      connectEventWs();
+
+      // Use server-reported alive status (avoids WS open/4001 race condition)
+      if (room?.archAlive) {
+        connectPtyWs(archObj, ARCH_TERM_ID, archStatus);
+      } else {
+        if (archStatus) archStatus.textContent = '○ 未启动';
+      }
+      if (room?.devAlive) {
+        connectPtyWs(devObj, DEV_TERM_ID, devStatus);
+      } else {
+        if (devStatus) devStatus.textContent = '○ 未启动';
+      }
+
+      // Neither PTY running → auto-open session picker so user doesn't have to hunt for the button
+      if (!room?.archAlive && !room?.devAlive) {
+        selectedArch = null; selectedDev = null; updateStartBtn();
+        loadSessionsFor('arch', archDirInput.value.trim());
+        loadSessionsFor('dev',  devDirInput.value.trim());
+        sessionPicker.style.display = 'flex';
+      }
+    }
+
+    init();
+  }
+
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,21 @@
+{
+  "name": "supervisor",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "postinstall": "chmod +x node_modules/node-pty/prebuilds/darwin-arm64/spawn-helper 2>/dev/null || true",
+    "start": "node server.js",
+    "open": "node server.js & sleep 1 && open http://localhost:3458"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "dependencies": {
+    "@enderfga/claw-orchestrator": "^4.1.1",
+    "node-pty": "^1.1.0",
+    "ws": "^8.21.0"
+  }
+}
