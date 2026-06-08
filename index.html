@@ -19,6 +19,7 @@
     --green: #3fb950;
     --amber: #e3b341;
     --red: #f85149;
+    --purple: #bc8cff;
   }
 
   html, body { height: 100%; background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; font-size: 14px; overflow: hidden; }
@@ -63,12 +64,13 @@
     width: 7px; height: 7px; border-radius: 50%; background: #484f58; flex-shrink: 0;
   }
   .room-status-dot.on { background: var(--green); box-shadow: 0 0 5px var(--green); }
-  .room-status-dot.arch { }
+  .room-status-dot.on.qa { background: var(--amber); box-shadow: 0 0 5px var(--amber); }
   .room-card-dirs { display: flex; flex-direction: column; gap: 4px; }
   .room-card-dir { display: flex; align-items: center; gap: 6px; font-size: 11px; }
   .room-card-dir-label { font-weight: 600; font-size: 10px; color: #484f58; width: 28px; flex-shrink: 0; }
   .room-card-dir-label.arch { color: #7c9eff; }
   .room-card-dir-label.dev  { color: #56d364; }
+  .room-card-dir-label.qa   { color: var(--amber); }
   .room-card-dir-path { color: var(--text-dim); font-family: 'SF Mono','Fira Code',monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .room-card-actions { display: flex; gap: 6px; margin-top: 2px; }
   .room-open-btn {
@@ -95,11 +97,12 @@
   }
   #newRoomInner {
     background: var(--bg2); border: 1px solid var(--border); border-radius: 10px;
-    padding: 24px; width: min(480px, calc(100vw - 40px));
+    padding: 24px; width: min(520px, calc(100vw - 40px));
   }
   #newRoomInner h2 { font-size: 14px; font-weight: 600; margin-bottom: 16px; }
   .nr-field { margin-bottom: 12px; }
   .nr-field label { display: block; font-size: 11px; color: var(--text-dim); margin-bottom: 5px; }
+  .nr-field label span { color: var(--text-dim); font-weight: 400; font-size: 10px; margin-left: 4px; }
   .nr-input {
     width: 100%; background: var(--bg3); border: 1px solid var(--border); border-radius: 5px;
     padding: 7px 10px; color: var(--text); font-size: 12px;
@@ -107,7 +110,7 @@
   }
   .nr-input:focus { border-color: var(--blue); }
   .nr-name { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; }
-  .nr-row { display: flex; gap: 8px; margin-bottom: 12px; }
+  .nr-row { display: flex; gap: 8px; margin-bottom: 0; }
   .nr-silent { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--text-dim); cursor: pointer; white-space: nowrap; }
   .nr-silent input { accent-color: var(--amber); cursor: pointer; }
   .nr-actions { display: flex; gap: 8px; margin-top: 16px; }
@@ -143,6 +146,7 @@
   .hdr-dir-label { font-size: 10px; font-weight: 600; white-space: nowrap; flex-shrink: 0; }
   .hdr-dir-label.arch { color: #7c9eff; }
   .hdr-dir-label.dev  { color: #56d364; }
+  .hdr-dir-label.qa   { color: var(--amber); }
   .hdr-dir-path { font-size: 11px; font-family: 'SF Mono','Fira Code',monospace; color: var(--text-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .hdr-btn { background: var(--bg3); border: 1px solid var(--border); border-radius: 5px; padding: 5px 12px; color: var(--blue); font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap; }
   .hdr-btn:hover { background: var(--border); }
@@ -168,25 +172,33 @@
   .term-wrap .xterm-rows { background: #0a0e14; }
   .xterm .xterm-helper-textarea { position: fixed !important; left: -4px !important; top: 0 !important; width: 1px !important; height: 1px !important; opacity: 0.001 !important; pointer-events: none !important; z-index: -1 !important; }
 
-  /* ── SESSION PICKER (used in room detail) ──────────────────────────────── */
+  /* ── SESSION PICKER ─────────────────────────────────────────────────────── */
   #sessionPicker { position: fixed; inset: 0; background: rgba(0,0,0,0.75); z-index: 100; display: flex; align-items: center; justify-content: center; padding: 20px; }
-  #sessionPickerInner { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 20px; width: min(900px, calc(100vw - 40px)); max-height: calc(100vh - 40px); display: flex; flex-direction: column; overflow: hidden; }
+  #sessionPickerInner { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 20px; width: min(1100px, calc(100vw - 40px)); max-height: calc(100vh - 40px); display: flex; flex-direction: column; overflow: hidden; }
   #sessionPickerTitle { font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 14px; flex-shrink: 0; }
   .session-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; flex: 1; min-height: 0; overflow: hidden; }
+  .session-cols.three-col { grid-template-columns: 1fr 1fr 1fr; }
   .session-cols > div { min-width: 0; overflow: hidden; display: flex; flex-direction: column; }
   .session-col-title { font-size: 11px; font-weight: 600; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px; padding-bottom: 5px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
   .session-col-title.arch { color: #7c9eff; }
   .session-col-title.dev  { color: #56d364; }
+  .session-col-title.qa   { color: var(--amber); }
   .session-col-options { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; flex-shrink: 0; }
   .dir-input { flex: 1; background: var(--bg3); border: 1px solid var(--border); border-radius: 4px; padding: 4px 8px; color: var(--text); font-size: 11px; font-family: 'SF Mono','Fira Code',monospace; outline: none; min-width: 0; }
   .dir-input:focus { border-color: var(--blue); }
   .silent-label { display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--text-dim); white-space: nowrap; cursor: pointer; user-select: none; }
   .silent-label input[type=checkbox] { accent-color: var(--amber); cursor: pointer; }
+  .model-select { background: var(--bg3); border: 1px solid var(--border); border-radius: 4px; padding: 3px 6px; color: var(--text-dim); font-size: 11px; outline: none; cursor: pointer; }
+  .model-select:focus { border-color: var(--blue); }
+  .cli-select { background: var(--bg3); border: 1px solid var(--border); border-radius: 4px; padding: 3px 6px; color: var(--purple); font-size: 11px; outline: none; cursor: pointer; font-weight: 600; flex-shrink: 0; }
+  .cli-select:focus { border-color: var(--purple); }
+  .ph-model { margin-left: 6px; font-size: 10px; color: var(--text-dim); font-weight: 400; }
   .session-list-inner { display: flex; flex-direction: column; gap: 5px; flex: 1; min-height: 80px; overflow-y: auto; overflow-x: hidden; margin-bottom: 8px; }
   .session-item { background: var(--bg3); border: 1px solid var(--border); border-radius: 5px; padding: 9px 10px; cursor: pointer; transition: border-color 0.15s; display: flex; align-items: flex-start; gap: 7px; min-width: 0; overflow: hidden; flex-shrink: 0; }
   .session-item:hover { border-color: var(--blue); }
   .session-item.selected-arch { border-color: #7c9eff; background: #1a2340; }
   .session-item.selected-dev  { border-color: #56d364; background: #1a2e1a; }
+  .session-item.selected-qa   { border-color: var(--amber); background: #2a2010; }
   .session-item-text { flex: 1; min-width: 0; overflow: hidden; }
   .session-item-first { font-size: 12px; color: var(--text); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.4; }
   .session-item-last  { font-size: 10px; color: var(--text-dim); margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -210,6 +222,26 @@
   ::-webkit-scrollbar { width: 5px; height: 5px; }
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  /* ── MEMORY PANEL ──────────────────────────────────────────────────────── */
+  #memoryPanel { position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 150; display: flex; align-items: center; justify-content: center; padding: 20px; }
+  #memoryPanelInner { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 20px; width: min(640px, calc(100vw - 40px)); max-height: calc(100vh - 40px); display: flex; flex-direction: column; gap: 14px; overflow: hidden; }
+  #memoryPanelInner h3 { font-size: 13px; font-weight: 600; color: var(--text); }
+  .mem-section-title { font-size: 11px; font-weight: 600; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; }
+  #memoryTextarea { width: 100%; height: 160px; background: var(--bg3); border: 1px solid var(--border); border-radius: 5px; padding: 8px; color: var(--text); font-size: 12px; font-family: 'SF Mono','Fira Code',monospace; resize: vertical; outline: none; }
+  #memoryTextarea:focus { border-color: var(--blue); }
+  .mem-actions { display: flex; gap: 8px; }
+  .mem-save { padding: 6px 16px; background: var(--blue); border: none; border-radius: 5px; color: #fff; font-size: 12px; font-weight: 600; cursor: pointer; }
+  .mem-save:hover { opacity: 0.88; }
+  .mem-close { padding: 6px 16px; background: var(--bg3); border: 1px solid var(--border); border-radius: 5px; color: var(--text-dim); font-size: 12px; cursor: pointer; }
+  .mem-close:hover { border-color: var(--blue); color: var(--blue); }
+  .mem-docs { display: flex; flex-direction: column; gap: 6px; max-height: 120px; overflow-y: auto; }
+  .mem-docs-group { font-size: 11px; }
+  .mem-docs-group-label { color: var(--text-dim); margin-bottom: 3px; }
+  .mem-docs-file { display: inline-block; background: var(--bg3); border: 1px solid var(--border); border-radius: 3px; padding: 1px 6px; font-size: 10px; color: var(--text-dim); font-family: 'SF Mono','Fira Code',monospace; margin: 1px; }
+  .mem-docs-empty { color: var(--text-dim); font-size: 11px; font-style: italic; }
+  #memoryBtn { position: relative; }
+  #memoryDot { position: absolute; top: -2px; right: -2px; width: 6px; height: 6px; border-radius: 50%; background: var(--amber); display: none; }
 </style>
 </head>
 <body>
@@ -233,17 +265,24 @@
       <input class="nr-input nr-name" id="nrName" type="text" placeholder="My Project" />
     </div>
     <div class="nr-field">
-      <label>Architect Directory</label>
+      <label>产品架构师 Directory</label>
       <div class="nr-row">
         <input class="nr-input" id="nrArchDir" type="text" placeholder="/path/to/project" spellcheck="false" />
         <label class="nr-silent"><input type="checkbox" id="nrArchSilent" /> 静默</label>
       </div>
     </div>
     <div class="nr-field">
-      <label>Developer Directory</label>
+      <label>开发工程师 Directory</label>
       <div class="nr-row">
         <input class="nr-input" id="nrDevDir" type="text" placeholder="/path/to/project" spellcheck="false" />
         <label class="nr-silent"><input type="checkbox" id="nrDevSilent" /> 静默</label>
+      </div>
+    </div>
+    <div class="nr-field">
+      <label>QA 工程师 Directory <span>（可选）</span></label>
+      <div class="nr-row">
+        <input class="nr-input" id="nrQaDir" type="text" placeholder="/path/to/project（留空则不启用 QA）" spellcheck="false" />
+        <label class="nr-silent"><input type="checkbox" id="nrQaSilent" /> 静默</label>
       </div>
     </div>
     <div class="nr-actions">
@@ -264,12 +303,16 @@
     </div>
     <div class="hdr-dirs">
       <div class="hdr-dir">
-        <span class="hdr-dir-label arch">Arch</span>
+        <span class="hdr-dir-label arch">PA</span>
         <span class="hdr-dir-path" id="archDirDisplay">—</span>
       </div>
       <div class="hdr-dir">
         <span class="hdr-dir-label dev">Dev</span>
         <span class="hdr-dir-path" id="devDirDisplay">—</span>
+      </div>
+      <div class="hdr-dir" id="qaDirHdr" style="display:none">
+        <span class="hdr-dir-label qa">QA</span>
+        <span class="hdr-dir-path" id="qaDirDisplay">—</span>
       </div>
     </div>
     <button class="hdr-btn" id="connectBtn">Sessions</button>
@@ -281,24 +324,72 @@
   <div id="sessionPicker" style="display:none">
     <div id="sessionPickerInner">
       <div id="sessionPickerTitle">Sessions <span style="font-weight:400;font-size:11px;color:var(--text-dim)">— 选择或新建会话，然后点击开始</span></div>
-      <div class="session-cols">
+      <div class="session-cols three-col" id="sessionCols">
         <div>
-          <div class="session-col-title arch">🏛 架构师</div>
+          <div class="session-col-title arch">🏛 产品架构师</div>
           <div class="session-col-options">
             <input class="dir-input" id="archDirInput" type="text" placeholder="/path/to/project" spellcheck="false" />
             <label class="silent-label" title="--dangerouslySkipPermissions"><input type="checkbox" id="archSilentChk" /> 静默</label>
           </div>
+          <div class="session-col-options" style="margin-bottom:4px">
+            <select class="cli-select" id="archCliSelect" title="CLI tool for Product Architect">
+              <option value="claude">Claude</option>
+              <option value="gemini">Gemini</option>
+              <option value="codex">Codex</option>
+              <option value="kimi">Kimi</option>
+            </select>
+            <select class="model-select" id="archModelSelect" title="Model for Product Architect">
+              <option value="claude-sonnet-4-6">Sonnet 4.6</option>
+              <option value="claude-opus-4-8">Opus 4.8</option>
+              <option value="claude-haiku-4-5-20251001">Haiku 4.5</option>
+            </select>
+          </div>
           <div class="session-list-inner" id="archSessionList"></div>
-          <button class="new-btn" id="newArchBtn">＋ 新建架构师会话</button>
+          <button class="new-btn" id="newArchBtn">＋ 新建产品架构师会话</button>
         </div>
         <div>
-          <div class="session-col-title dev">🧑‍💻 开发者</div>
+          <div class="session-col-title dev">🧑‍💻 开发工程师</div>
           <div class="session-col-options">
             <input class="dir-input" id="devDirInput" type="text" placeholder="/path/to/project" spellcheck="false" />
             <label class="silent-label" title="--dangerouslySkipPermissions"><input type="checkbox" id="devSilentChk" /> 静默</label>
           </div>
+          <div class="session-col-options" style="margin-bottom:4px">
+            <select class="cli-select" id="devCliSelect" title="CLI tool for Developer">
+              <option value="claude">Claude</option>
+              <option value="gemini">Gemini</option>
+              <option value="codex">Codex</option>
+              <option value="kimi">Kimi</option>
+            </select>
+            <select class="model-select" id="devModelSelect" title="Model for Developer">
+              <option value="claude-sonnet-4-6">Sonnet 4.6</option>
+              <option value="claude-opus-4-8">Opus 4.8</option>
+              <option value="claude-haiku-4-5-20251001">Haiku 4.5</option>
+            </select>
+          </div>
           <div class="session-list-inner" id="devSessionList"></div>
-          <button class="new-btn" id="newDevBtn">＋ 新建开发者会话</button>
+          <button class="new-btn" id="newDevBtn">＋ 新建开发工程师会话</button>
+        </div>
+        <div id="qaSessionCol">
+          <div class="session-col-title qa">🔍 QA 工程师 <span style="font-weight:400;color:var(--text-dim);font-size:10px">(可选)</span></div>
+          <div class="session-col-options">
+            <input class="dir-input" id="qaDirInput" type="text" placeholder="留空则不启用 QA" spellcheck="false" />
+            <label class="silent-label" title="--dangerouslySkipPermissions"><input type="checkbox" id="qaSilentChk" /> 静默</label>
+          </div>
+          <div class="session-col-options" style="margin-bottom:4px">
+            <select class="cli-select" id="qaCliSelect" title="CLI tool for QA Engineer">
+              <option value="claude">Claude</option>
+              <option value="gemini">Gemini</option>
+              <option value="codex">Codex</option>
+              <option value="kimi">Kimi</option>
+            </select>
+            <select class="model-select" id="qaModelSelect" title="Model for QA Engineer">
+              <option value="claude-sonnet-4-6">Sonnet 4.6</option>
+              <option value="claude-opus-4-8">Opus 4.8</option>
+              <option value="claude-haiku-4-5-20251001">Haiku 4.5</option>
+            </select>
+          </div>
+          <div class="session-list-inner" id="qaSessionList"></div>
+          <button class="new-btn" id="newQaBtn">＋ 新建 QA 会话</button>
         </div>
       </div>
       <button id="startBtn" disabled>开始</button>
@@ -306,29 +397,61 @@
   </div>
 
   <div id="main">
-    <div class="panel" id="leftPanel">
+    <div class="panel" id="archPanel">
       <div class="panel-header">
-        🏛 Architect
+        🏛 产品架构师
+        <span class="ph-model" id="archModelBadge"></span>
         <span class="ph-status" id="archStatus"></span>
         <button class="ph-reconnect" id="archReconnect" title="Reconnect">⟳</button>
       </div>
       <div class="term-wrap" id="archTermEl"></div>
     </div>
-    <div class="panel" id="rightPanel">
+    <div class="panel" id="devPanel">
       <div class="panel-header">
-        🧑‍💻 Developer
+        🧑‍💻 开发工程师
+        <span class="ph-model" id="devModelBadge"></span>
         <span class="ph-status" id="devStatus"></span>
         <button class="ph-reconnect" id="devReconnect" title="Reconnect">⟳</button>
       </div>
       <div class="term-wrap" id="devTermEl"></div>
     </div>
+    <div class="panel" id="qaPanel" style="display:none">
+      <div class="panel-header">
+        🔍 QA 工程师
+        <span class="ph-model" id="qaModelBadge"></span>
+        <span class="ph-status" id="qaStatus"></span>
+        <button class="ph-reconnect" id="qaReconnect" title="Reconnect">⟳</button>
+      </div>
+      <div class="term-wrap" id="qaTermEl"></div>
+    </div>
   </div>
 
   <div id="relayBar">
     <span id="inboxBadge"></span>
-    <button class="relay-btn" id="devToArchBtn" title="手动触发架构师审查">📋 Dev → Arch 审查</button>
+    <button class="relay-btn" id="devToArchBtn" title="手动触发产品架构师审查 Dev 进度">📋 Dev → PA 审查</button>
+    <button class="relay-btn" id="devToQaBtn" title="将 Dev 最新输出发给 QA 测试" style="display:none">🔍 Dev → QA 测试</button>
     <button class="relay-btn" id="watchdogBtn" title="定时检查任务是否停滞（10分钟一次）">⏱ Watchdog</button>
     <span id="watchdogBadge"></span>
+    <button class="relay-btn" id="memoryBtn" title="查看/编辑 Room 记忆与项目文档">📝 记忆<span id="memoryDot"></span></button>
+  </div>
+
+  <!-- Memory Panel -->
+  <div id="memoryPanel" style="display:none">
+    <div id="memoryPanelInner">
+      <h3>📝 Room 记忆</h3>
+      <div>
+        <div class="mem-section-title">Room 记忆（跨会话协作决策）</div>
+        <textarea id="memoryTextarea" placeholder="记录跨会话的关键决策、任务状态、约定等…&#10;Agent 可通过 update-room-memory 脚本追加内容。"></textarea>
+        <div class="mem-actions" style="margin-top:8px">
+          <button class="mem-save" id="memorySaveBtn">保存</button>
+          <button class="mem-close" id="memoryCloseBtn">关闭</button>
+        </div>
+      </div>
+      <div>
+        <div class="mem-section-title">项目文档（ai-docs）</div>
+        <div class="mem-docs" id="memoryDocsList"><div class="mem-docs-empty">加载中…</div></div>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -356,16 +479,18 @@
   // ROOM LIST
   // ══════════════════════════════════════════════════════════════════════════
   function initRoomList() {
-    const roomCards  = document.getElementById('roomCards');
-    const newRoomBtn = document.getElementById('newRoomBtn');
-    const modal      = document.getElementById('newRoomModal');
-    const nrName     = document.getElementById('nrName');
-    const nrArchDir  = document.getElementById('nrArchDir');
-    const nrDevDir   = document.getElementById('nrDevDir');
+    const roomCards    = document.getElementById('roomCards');
+    const newRoomBtn   = document.getElementById('newRoomBtn');
+    const modal        = document.getElementById('newRoomModal');
+    const nrName       = document.getElementById('nrName');
+    const nrArchDir    = document.getElementById('nrArchDir');
+    const nrDevDir     = document.getElementById('nrDevDir');
+    const nrQaDir      = document.getElementById('nrQaDir');
     const nrArchSilent = document.getElementById('nrArchSilent');
     const nrDevSilent  = document.getElementById('nrDevSilent');
-    const nrCancel   = document.getElementById('nrCancel');
-    const nrCreate   = document.getElementById('nrCreate');
+    const nrQaSilent   = document.getElementById('nrQaSilent');
+    const nrCancel     = document.getElementById('nrCancel');
+    const nrCreate     = document.getElementById('nrCreate');
 
     let pollTimer = null;
 
@@ -385,17 +510,25 @@
       for (const r of list) {
         const card = document.createElement('div');
         card.className = 'room-card';
+        const qaDot = r.qaDir
+          ? `<div class="room-status-dot qa ${r.qaAlive ? 'on' : ''}" title="QA ${r.qaAlive ? 'running' : 'stopped'}"></div>`
+          : '';
+        const qaDir = r.qaDir
+          ? `<div class="room-card-dir"><span class="room-card-dir-label qa">QA</span><span class="room-card-dir-path">${escHtml(r.qaDir)}</span></div>`
+          : '';
         card.innerHTML = `
           <div class="room-card-top">
             <div class="room-card-name">${escHtml(r.name)}</div>
             <div class="room-card-status">
-              <div class="room-status-dot arch ${r.archAlive ? 'on' : ''}" title="Arch ${r.archAlive ? 'running' : 'stopped'}"></div>
+              <div class="room-status-dot arch ${r.archAlive ? 'on' : ''}" title="PA ${r.archAlive ? 'running' : 'stopped'}"></div>
               <div class="room-status-dot ${r.devAlive ? 'on' : ''}" title="Dev ${r.devAlive ? 'running' : 'stopped'}"></div>
+              ${qaDot}
             </div>
           </div>
           <div class="room-card-dirs">
-            <div class="room-card-dir"><span class="room-card-dir-label arch">Arch</span><span class="room-card-dir-path">${escHtml(r.archDir)}</span></div>
+            <div class="room-card-dir"><span class="room-card-dir-label arch">PA</span><span class="room-card-dir-path">${escHtml(r.archDir)}</span></div>
             <div class="room-card-dir"><span class="room-card-dir-label dev">Dev</span><span class="room-card-dir-path">${escHtml(r.devDir)}</span></div>
+            ${qaDir}
           </div>
           <div class="room-card-actions">
             <button class="room-open-btn">Open →</button>
@@ -416,15 +549,13 @@
       }
     }
 
-    // Poll for status updates every 3s while on room list
     loadRooms();
     pollTimer = setInterval(loadRooms, 3000);
     window.addEventListener('beforeunload', () => clearInterval(pollTimer));
 
-    // New room modal
     newRoomBtn.addEventListener('click', () => {
-      nrName.value = ''; nrArchDir.value = ''; nrDevDir.value = '';
-      nrArchSilent.checked = false; nrDevSilent.checked = false;
+      nrName.value = ''; nrArchDir.value = ''; nrDevDir.value = ''; nrQaDir.value = '';
+      nrArchSilent.checked = false; nrDevSilent.checked = false; nrQaSilent.checked = false;
       modal.style.display = 'flex';
       setTimeout(() => nrName.focus(), 50);
     });
@@ -434,12 +565,13 @@
     nrCreate.addEventListener('click', async () => {
       const archDir = nrArchDir.value.trim();
       const devDir  = nrDevDir.value.trim();
-      if (!archDir || !devDir) { alert('请填写两个目录'); return; }
+      const qaDir   = nrQaDir.value.trim() || null;
+      if (!archDir || !devDir) { alert('请填写产品架构师和开发工程师的目录'); return; }
       nrCreate.disabled = true; nrCreate.textContent = '创建中…';
       try {
         const r = await fetch('/rooms', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name: nrName.value.trim() || 'New Room', archDir, devDir, archSilent: nrArchSilent.checked, devSilent: nrDevSilent.checked }),
+          body: JSON.stringify({ name: nrName.value.trim() || 'New Room', archDir, devDir, qaDir, archSilent: nrArchSilent.checked, devSilent: nrDevSilent.checked, qaSilent: nrQaSilent.checked }),
         });
         if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.error || r.statusText); }
         const { room } = await r.json();
@@ -451,8 +583,7 @@
       }
     });
 
-    // Enter key in modal fields
-    [nrName, nrArchDir, nrDevDir].forEach(el => el.addEventListener('keydown', e => { if (e.key === 'Enter') nrCreate.click(); }));
+    [nrName, nrArchDir, nrDevDir, nrQaDir].forEach(el => el.addEventListener('keydown', e => { if (e.key === 'Enter') nrCreate.click(); }));
   }
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -461,6 +592,7 @@
   function initRoomDetail(roomId) {
     const ARCH_TERM_ID = roomId + '-arch';
     const DEV_TERM_ID  = roomId + '-dev';
+    const QA_TERM_ID   = roomId + '-qa';
 
     const XTERM_THEME = {
       background:'#0a0e14', foreground:'#c9d1d9', cursor:'#58a6ff', cursorAccent:'#0a0e14',
@@ -501,11 +633,14 @@
 
     const archObj = createTerminal('archTermEl');
     const devObj  = createTerminal('devTermEl');
+    const qaObj   = createTerminal('qaTermEl');
 
     const archStatus = document.getElementById('archStatus');
     const devStatus  = document.getElementById('devStatus');
+    const qaStatus   = document.getElementById('qaStatus');
     const archReconn = document.getElementById('archReconnect');
     const devReconn  = document.getElementById('devReconnect');
+    const qaReconn   = document.getElementById('qaReconnect');
 
     function connectPtyWs(obj, termId, statusEl) {
       if (obj.ws) { try { obj.ws.close(); } catch(e){} obj.ws = null; }
@@ -527,6 +662,7 @@
 
     archReconn.addEventListener('click', () => connectPtyWs(archObj, ARCH_TERM_ID, archStatus));
     devReconn.addEventListener('click',  () => connectPtyWs(devObj,  DEV_TERM_ID,  devStatus));
+    qaReconn.addEventListener('click',   () => connectPtyWs(qaObj,   QA_TERM_ID,   qaStatus));
 
     // ── Event WS ────────────────────────────────────────────────────────────
     const statusDot   = document.getElementById('statusDot');
@@ -541,19 +677,19 @@
         try {
           const d = JSON.parse(evt.data);
           if (d.type === 'inbox_delivered' || d.type === 'inbox_queued') {
-            // Only show badge for events in this room
-            if (d.to && d.to.startsWith(roomId)) showInboxBadge(d.from, d.to, d.queueLen);
+            if (d.to && d.to.startsWith(roomId)) showInboxBadge(d.from, d.to, d.queueLen, d.priority);
           }
           if (d.type === 'pty_exited') {
             if (d.termId === ARCH_TERM_ID && archStatus) archStatus.textContent = '○ exited';
             if (d.termId === DEV_TERM_ID  && devStatus)  devStatus.textContent  = '○ exited';
+            if (d.termId === QA_TERM_ID   && qaStatus)   qaStatus.textContent   = '○ exited';
           }
           if (d.type === 'watchdog_status' && d.roomId === roomId) {
             setWatchdogUI(d.enabled);
           }
           if (d.type === 'watchdog_triggered' && d.roomId === roomId) {
             const parts = d.issues.map(i => {
-              const who = i.role === 'arch' ? '架构师' : '开发者';
+              const who = i.role === 'arch' ? '产品架构师' : i.role === 'qa' ? 'QA' : '开发者';
               if (i.issue === 'exited') return `${who} 进程已退出`;
               if (i.issue === 'idle')   return `${who} 停滞 ${i.idleMin}min`;
               return `${who} ${i.issue}`;
@@ -564,6 +700,25 @@
             setWatchdogUI(false);
             showWatchdogBadge('✓ 任务已完成，Watchdog 已停止', true);
           }
+          if (d.type === 'session_captured' && d.roomId === roomId) {
+            if (currentRoom) currentRoom[`${d.role}SessionId`] = d.sessionId;
+          }
+          if (d.type === 'model_switched' && d.roomId === roomId) {
+            const badge = d.role === 'arch' ? archModelBadge : d.role === 'qa' ? qaModelBadge : devModelBadge;
+            setModelBadge(badge, d.model, d.cli || 'claude');
+            // Reconnect PTY WS — server respawned the process
+            const termId   = roomId + '-' + d.role;
+            const obj      = d.role === 'arch' ? archObj : d.role === 'qa' ? qaObj : devObj;
+            const statusEl = d.role === 'arch' ? archStatus : d.role === 'qa' ? qaStatus : devStatus;
+            setTimeout(() => connectPtyWs(obj, termId, statusEl), 1500);
+            const roleLabel = d.role === 'arch' ? 'PA' : d.role === 'qa' ? 'QA' : 'Dev';
+            const shortModel = modelLabel(d.model) || 'Sonnet';
+            showInboxBadge('system', roomId + '-' + d.role, 0, 'normal');
+            inboxBadge.textContent = `${roleLabel} → ${shortModel} ↺`;
+            inboxBadge.style.display = 'inline-block';
+            clearTimeout(inboxBadgeTimer);
+            inboxBadgeTimer = setTimeout(() => { inboxBadge.style.display = 'none'; }, 5000);
+          }
         } catch {}
       };
     }
@@ -573,6 +728,8 @@
     const roomNameInput   = document.getElementById('roomNameInput');
     const archDirDisplay  = document.getElementById('archDirDisplay');
     const devDirDisplay   = document.getElementById('devDirDisplay');
+    const qaDirDisplay    = document.getElementById('qaDirDisplay');
+    const qaDirHdr        = document.getElementById('qaDirHdr');
 
     let currentRoom = null;
     async function loadRoom() {
@@ -584,11 +741,39 @@
         archDirDisplay.textContent  = currentRoom.archDir;
         devDirDisplay.textContent   = currentRoom.devDir;
         document.title = 'Supervisor — ' + currentRoom.name;
-        archDirInput.value  = currentRoom.archDir;
-        devDirInput.value   = currentRoom.devDir;
+        archDirInput.value    = currentRoom.archDir;
+        devDirInput.value     = currentRoom.devDir;
         archSilentChk.checked = currentRoom.archSilent;
         devSilentChk.checked  = currentRoom.devSilent;
+        const loadedArchCli = currentRoom.archCli || 'claude';
+        const loadedDevCli  = currentRoom.devCli  || 'claude';
+        archCliSelect.value = loadedArchCli;
+        devCliSelect.value  = loadedDevCli;
+        populateModelSelect(archModelSelect, loadedArchCli, currentRoom.archModel);
+        populateModelSelect(devModelSelect,  loadedDevCli,  currentRoom.devModel);
+        setModelBadge(archModelBadge, currentRoom.archModel, loadedArchCli);
+        setModelBadge(devModelBadge,  currentRoom.devModel,  loadedDevCli);
         setWatchdogUI(currentRoom.watchdogEnabled || false);
+
+        // Show QA UI if room has qaDir configured
+        if (currentRoom.qaDir) {
+          qaDirDisplay.textContent = currentRoom.qaDir;
+          qaDirHdr.style.display = 'flex';
+          document.getElementById('qaPanel').style.display = 'flex';
+          document.getElementById('devToQaBtn').style.display = '';
+          qaDirInput.value    = currentRoom.qaDir;
+          qaSilentChk.checked = currentRoom.qaSilent || false;
+          const loadedQaCli = currentRoom.qaCli || 'claude';
+          qaCliSelect.value = loadedQaCli;
+          populateModelSelect(qaModelSelect, loadedQaCli, currentRoom.qaModel);
+          setModelBadge(qaModelBadge, currentRoom.qaModel, loadedQaCli);
+        }
+
+        // Restore saved session IDs as pre-selections
+        if (currentRoom.archSessionId) selectedArch = currentRoom.archSessionId;
+        if (currentRoom.devSessionId)  selectedDev  = currentRoom.devSessionId;
+        if (currentRoom.qaSessionId)   selectedQa   = currentRoom.qaSessionId;
+
         return currentRoom;
       } catch { return null; }
     }
@@ -613,7 +798,6 @@
     roomNameInput.addEventListener('blur', saveRoomName);
     roomNameInput.addEventListener('keydown', e => { if (e.key === 'Enter') roomNameInput.blur(); if (e.key === 'Escape') { roomNameInput.style.display = 'none'; roomNameDisplay.style.display = ''; } });
 
-    // ── Back button ──────────────────────────────────────────────────────────
     document.getElementById('backBtn').addEventListener('click', () => { location.href = '/'; });
 
     // ── Session picker ───────────────────────────────────────────────────────
@@ -621,18 +805,105 @@
     const sessionPicker   = document.getElementById('sessionPicker');
     const archSessionList = document.getElementById('archSessionList');
     const devSessionListEl= document.getElementById('devSessionList');
+    const qaSessionListEl = document.getElementById('qaSessionList');
     const archDirInput    = document.getElementById('archDirInput');
     const devDirInput     = document.getElementById('devDirInput');
+    const qaDirInput      = document.getElementById('qaDirInput');
     const archSilentChk   = document.getElementById('archSilentChk');
     const devSilentChk    = document.getElementById('devSilentChk');
+    const qaSilentChk     = document.getElementById('qaSilentChk');
+    const archModelSelect = document.getElementById('archModelSelect');
+    const devModelSelect  = document.getElementById('devModelSelect');
+    const qaModelSelect   = document.getElementById('qaModelSelect');
+    const archCliSelect   = document.getElementById('archCliSelect');
+    const devCliSelect    = document.getElementById('devCliSelect');
+    const qaCliSelect     = document.getElementById('qaCliSelect');
+    const archModelBadge  = document.getElementById('archModelBadge');
+    const devModelBadge   = document.getElementById('devModelBadge');
+    const qaModelBadge    = document.getElementById('qaModelBadge');
     const newArchBtn      = document.getElementById('newArchBtn');
     const newDevBtn       = document.getElementById('newDevBtn');
+    const newQaBtn        = document.getElementById('newQaBtn');
     const startBtn        = document.getElementById('startBtn');
+
+    const CLI_MODELS = {
+      claude: [
+        { value: 'claude-sonnet-4-6',        label: 'Sonnet 4.6' },
+        { value: 'claude-opus-4-8',           label: 'Opus 4.8'   },
+        { value: 'claude-haiku-4-5-20251001', label: 'Haiku 4.5'  },
+      ],
+      gemini: [
+        { value: 'gemini-2.5-flash',        label: '2.5 Flash'        },
+        { value: 'gemini-2.5-flash-lite',   label: '2.5 Flash Lite'   },
+        { value: 'gemini-2.5-pro',          label: '2.5 Pro'          },
+        { value: 'gemini-3-flash-preview',  label: '3 Flash Preview'  },
+        { value: 'gemini-3-pro-preview',    label: '3 Pro Preview'    },
+        { value: 'gemini-3.1-pro-preview',  label: '3.1 Pro Preview'  },
+      ],
+      codex: [
+        { value: 'gpt-5.5',     label: 'GPT-5.5'      },
+        { value: 'gpt-5.5-pro', label: 'GPT-5.5 Pro'  },
+        { value: 'gpt-5.4',     label: 'GPT-5.4'      },
+        { value: 'gpt-5.4-mini',label: 'GPT-5.4 Mini' },
+        { value: 'o4-mini',     label: 'o4-mini'       },
+        { value: 'o3',          label: 'o3'            },
+      ],
+      kimi: [
+        { value: 'kimi-for-coding',   label: 'Kimi for Coding' },
+        { value: 'kimi-k2.6',         label: 'k2.6'            },
+        { value: 'kimi-k2.5',         label: 'k2.5'            },
+        { value: 'moonshot-v1-8k',    label: 'v1-8k'           },
+        { value: 'moonshot-v1-32k',   label: 'v1-32k'          },
+        { value: 'moonshot-v1-128k',  label: 'v1-128k'         },
+      ],
+    };
+
+    function populateModelSelect(modelSelectEl, cliName, currentModel) {
+      const models = CLI_MODELS[cliName] || CLI_MODELS.claude;
+      modelSelectEl.innerHTML = '';
+      for (const m of models) {
+        const opt = document.createElement('option');
+        opt.value = m.value; opt.textContent = m.label;
+        modelSelectEl.appendChild(opt);
+      }
+      if (currentModel && models.some(m => m.value === currentModel)) modelSelectEl.value = currentModel;
+      else modelSelectEl.value = models[0].value;
+    }
+
+    function modelLabel(model, cli) {
+      if (!model) return (cli && cli !== 'claude') ? cli.charAt(0).toUpperCase() + cli.slice(1) : '';
+      if (cli === 'gemini') {
+        const m = (CLI_MODELS.gemini || []).find(x => x.value === model);
+        return m ? m.label : 'Gemini';
+      }
+      if (cli === 'codex') {
+        const m = (CLI_MODELS.codex || []).find(x => x.value === model);
+        return m ? m.label : 'Codex';
+      }
+      if (cli === 'kimi') {
+        const m = (CLI_MODELS.kimi || []).find(x => x.value === model);
+        return m ? m.label : 'Kimi';
+      }
+      // Claude
+      if (model === 'claude-sonnet-4-6') return '';
+      if (model.includes('opus'))  return 'Opus';
+      if (model.includes('haiku')) return 'Haiku';
+      return model.split('-').pop();
+    }
+
+    function setModelBadge(badge, model, cli) {
+      const label = modelLabel(model, cli);
+      badge.textContent = label ? `[${label}]` : '';
+      const isOpus   = model && model.includes('opus');
+      const isNonClaude = cli && cli !== 'claude';
+      badge.style.color = isNonClaude ? 'var(--purple)' : isOpus ? 'var(--amber)' : 'var(--text-dim)';
+    }
 
     let selectedArch = null;
     let selectedDev  = null;
+    let selectedQa   = null;
 
-    let _archDirTimer = null, _devDirTimer = null;
+    let _archDirTimer = null, _devDirTimer = null, _qaDirTimer = null;
     archDirInput.addEventListener('input', () => {
       selectedArch = null; updateStartBtn();
       clearTimeout(_archDirTimer);
@@ -643,15 +914,29 @@
       clearTimeout(_devDirTimer);
       _devDirTimer = setTimeout(() => loadSessionsFor('dev', devDirInput.value.trim()), 400);
     });
+    qaDirInput.addEventListener('input', () => {
+      selectedQa = null; updateStartBtn();
+      clearTimeout(_qaDirTimer);
+      _qaDirTimer = setTimeout(() => loadSessionsFor('qa', qaDirInput.value.trim()), 400);
+    });
 
     function updateStartBtn() {
       startBtn.disabled = false;
       const a = selectedArch ? selectedArch.slice(0, 8) + '…' : '新建';
       const d = selectedDev  ? selectedDev.slice(0, 8)  + '…' : '新建';
-      startBtn.textContent = `开始  (Arch: ${a}  /  Dev: ${d})`;
+      if (qaDirInput && qaDirInput.value.trim()) {
+        const q = selectedQa ? selectedQa.slice(0, 8) + '…' : '新建';
+        startBtn.textContent = `开始  (PA: ${a}  /  Dev: ${d}  /  QA: ${q})`;
+      } else {
+        startBtn.textContent = `开始  (PA: ${a}  /  Dev: ${d})`;
+      }
     }
+    archCliSelect.addEventListener('change', () => { populateModelSelect(archModelSelect, archCliSelect.value, null); updateStartBtn(); if (sessionPicker.style.display !== 'none') loadSessionsFor('arch', archDirInput.value.trim()); });
+    devCliSelect.addEventListener('change',  () => { populateModelSelect(devModelSelect,  devCliSelect.value,  null); updateStartBtn(); if (sessionPicker.style.display !== 'none') loadSessionsFor('dev',  devDirInput.value.trim()); });
+    qaCliSelect.addEventListener('change',   () => { populateModelSelect(qaModelSelect,   qaCliSelect.value,   null); updateStartBtn(); if (sessionPicker.style.display !== 'none') loadSessionsFor('qa',   qaDirInput.value.trim()); });
     archSilentChk.addEventListener('change', updateStartBtn);
     devSilentChk.addEventListener('change',  updateStartBtn);
+    qaSilentChk.addEventListener('change',   updateStartBtn);
 
     function buildSessionItem(s, role) {
       const item = document.createElement('div');
@@ -659,58 +944,118 @@
       const dateStr = s.lastTs ? new Date(s.lastTs).toLocaleString('zh-CN', { month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' }) : '';
       item.innerHTML = `<div class="session-item-text"><div class="session-item-first">${escHtml(s.firstPrompt || '(无标题)')}</div><div class="session-item-last">${dateStr ? escHtml(dateStr) + ' · ' : ''}${escHtml(s.lastPrompt || '-')}</div></div>`;
       item.addEventListener('click', () => {
-        const col = role === 'arch' ? archSessionList : devSessionListEl;
-        col.querySelectorAll('.session-item').forEach(el => el.classList.remove('selected-arch', 'selected-dev'));
-        item.classList.add(role === 'arch' ? 'selected-arch' : 'selected-dev');
-        if (role === 'arch') selectedArch = s.sessionId; else selectedDev = s.sessionId;
+        const col = role === 'arch' ? archSessionList : role === 'qa' ? qaSessionListEl : devSessionListEl;
+        col.querySelectorAll('.session-item').forEach(el => el.classList.remove('selected-arch', 'selected-dev', 'selected-qa'));
+        item.classList.add(role === 'arch' ? 'selected-arch' : role === 'qa' ? 'selected-qa' : 'selected-dev');
+        if (role === 'arch') selectedArch = s.sessionId;
+        else if (role === 'qa') selectedQa = s.sessionId;
+        else selectedDev = s.sessionId;
         updateStartBtn();
       });
       return item;
     }
 
     async function loadSessionsFor(role, dir) {
-      const listEl = role === 'arch' ? archSessionList : devSessionListEl;
+      const listEl = role === 'arch' ? archSessionList : role === 'qa' ? qaSessionListEl : devSessionListEl;
       if (!dir) { listEl.innerHTML = '<div style="color:var(--text-dim);font-size:11px;padding:4px 0">请输入目录</div>'; return; }
+      // Non-Claude CLIs use their own session management — no Claude session files to show
+      const cliSel = role === 'arch' ? archCliSelect : role === 'qa' ? qaCliSelect : devCliSelect;
+      if (cliSel.value !== 'claude') {
+        listEl.innerHTML = '<div style="color:var(--text-dim);font-size:11px;padding:4px 0">当前 CLI 不支持历史会话（将新建）</div>';
+        if (role === 'arch') selectedArch = null;
+        else if (role === 'qa') selectedQa = null;
+        else selectedDev = null;
+        updateStartBtn();
+        return;
+      }
       listEl.innerHTML = '<div style="color:var(--text-dim);font-size:11px;padding:4px">加载中…</div>';
-      if (role === 'arch') selectedArch = null; else selectedDev = null;
+      // Keep previous selection stable during fetch — avoids "新建" flash
       updateStartBtn();
       try {
         const list = await fetch('/sessions?projectDir=' + encodeURIComponent(dir)).then(r => r.json());
         listEl.innerHTML = '';
-        if (!list.length) listEl.innerHTML = '<div style="color:var(--text-dim);font-size:11px;padding:4px 0">暂无历史会话</div>';
-        else list.forEach(s => listEl.appendChild(buildSessionItem(s, role)));
+        const savedId = role === 'arch' ? currentRoom?.archSessionId : role === 'qa' ? currentRoom?.qaSessionId : currentRoom?.devSessionId;
+        if (!list.length) {
+          listEl.innerHTML = '<div style="color:var(--text-dim);font-size:11px;padding:4px 0">暂无历史会话</div>';
+        } else {
+          list.forEach(s => {
+            const item = buildSessionItem(s, role);
+            // Pre-select saved session
+            if (savedId && s.sessionId === savedId) {
+              item.classList.add(role === 'arch' ? 'selected-arch' : role === 'qa' ? 'selected-qa' : 'selected-dev');
+              item.querySelector('.session-item-last').textContent = '(上次使用) · ' + (item.querySelector('.session-item-last').textContent || '');
+              if (role === 'arch') selectedArch = s.sessionId;
+              else if (role === 'qa') selectedQa = s.sessionId;
+              else selectedDev = s.sessionId;
+            }
+            listEl.appendChild(item);
+          });
+          // Saved session not found in list — show warning
+          if (savedId && !list.some(s => s.sessionId === savedId)) {
+            const warn = document.createElement('div');
+            warn.style.cssText = 'color:var(--amber);font-size:10px;padding:3px 0';
+            warn.textContent = '⚠ 上次会话不存在，将新建';
+            listEl.prepend(warn);
+          }
+        }
+        updateStartBtn();
       } catch { listEl.innerHTML = '<div style="color:#f85149;font-size:11px">加载失败</div>'; }
     }
 
     connectBtn.addEventListener('click', () => {
-      selectedArch = null; selectedDev = null; updateStartBtn();
+      selectedArch = currentRoom?.archSessionId || null;
+      selectedDev  = currentRoom?.devSessionId  || null;
+      selectedQa   = currentRoom?.qaSessionId   || null;
+      updateStartBtn();
       loadSessionsFor('arch', archDirInput.value.trim());
       loadSessionsFor('dev',  devDirInput.value.trim());
+      if (qaDirInput.value.trim()) loadSessionsFor('qa', qaDirInput.value.trim());
       sessionPicker.style.display = 'flex';
     });
     sessionPicker.addEventListener('click', e => { if (e.target === sessionPicker) sessionPicker.style.display = 'none'; });
     newArchBtn.addEventListener('click', () => { archSessionList.querySelectorAll('.session-item').forEach(el => el.classList.remove('selected-arch')); selectedArch = null; updateStartBtn(); });
     newDevBtn.addEventListener('click',  () => { devSessionListEl.querySelectorAll('.session-item').forEach(el => el.classList.remove('selected-dev')); selectedDev  = null; updateStartBtn(); });
+    newQaBtn.addEventListener('click',   () => { qaSessionListEl.querySelectorAll('.session-item').forEach(el => el.classList.remove('selected-qa'));  selectedQa   = null; updateStartBtn(); });
 
     startBtn.addEventListener('click', async () => {
       const archDir = archDirInput.value.trim();
       const devDir  = devDirInput.value.trim();
-      if (!archDir || !devDir) { alert('请填写两个目录'); return; }
+      const qaDir   = qaDirInput.value.trim() || null;
+      if (!archDir || !devDir) { alert('请填写目录'); return; }
 
       sessionPicker.style.display = 'none';
       archObj.term.focus();
       try { archObj.fitAddon.fit(); } catch(e) {}
       try { devObj.fitAddon.fit();  } catch(e) {}
+      if (qaDir) { try { qaObj.fitAddon.fit(); } catch(e) {} }
 
-      // Update room dirs if changed
-      if (currentRoom && (archDir !== currentRoom.archDir || devDir !== currentRoom.devDir ||
-          archSilentChk.checked !== currentRoom.archSilent || devSilentChk.checked !== currentRoom.devSilent)) {
+      // Update room dirs/cli/model if changed
+      const dirChanged = currentRoom && (
+        archDir !== currentRoom.archDir || devDir !== currentRoom.devDir ||
+        archSilentChk.checked !== currentRoom.archSilent || devSilentChk.checked !== currentRoom.devSilent ||
+        qaDir !== (currentRoom.qaDir || null) || qaSilentChk.checked !== (currentRoom.qaSilent || false) ||
+        archCliSelect.value !== (currentRoom.archCli || 'claude') ||
+        devCliSelect.value  !== (currentRoom.devCli  || 'claude') ||
+        qaCliSelect.value   !== (currentRoom.qaCli   || 'claude')
+      );
+      if (dirChanged) {
         await fetch('/rooms/' + roomId, {
           method: 'PUT', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ archDir, devDir, archSilent: archSilentChk.checked, devSilent: devSilentChk.checked }),
+          body: JSON.stringify({
+            archDir, devDir, qaDir,
+            archSilent: archSilentChk.checked, devSilent: devSilentChk.checked, qaSilent: qaSilentChk.checked,
+            archCli: archCliSelect.value, devCli: devCliSelect.value, qaCli: qaCliSelect.value,
+          }),
         }).catch(() => {});
-        currentRoom.archDir = archDir; currentRoom.devDir = devDir;
+        if (currentRoom) { currentRoom.archDir = archDir; currentRoom.devDir = devDir; currentRoom.qaDir = qaDir; currentRoom.archCli = archCliSelect.value; currentRoom.devCli = devCliSelect.value; currentRoom.qaCli = qaCliSelect.value; }
         archDirDisplay.textContent = archDir; devDirDisplay.textContent = devDir;
+      }
+      // Show QA panel if QA dir was provided (handles rooms that didn't originally have qaDir)
+      if (qaDir) {
+        qaDirHdr.style.display = 'flex';
+        qaDirDisplay.textContent = qaDir;
+        document.getElementById('qaPanel').style.display = 'flex';
+        document.getElementById('devToQaBtn').style.display = '';
       }
 
       const cols = Math.min(archObj.term.cols, devObj.term.cols);
@@ -719,7 +1064,7 @@
       try {
         const r = await fetch('/rooms/' + roomId + '/spawn', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ archSessionId: selectedArch || null, devSessionId: selectedDev || null, cols, rows }),
+          body: JSON.stringify({ archSessionId: selectedArch || null, devSessionId: selectedDev || null, qaSessionId: selectedQa || null, archModel: archModelSelect.value, devModel: devModelSelect.value, qaModel: qaModelSelect.value, archCli: archCliSelect.value, devCli: devCliSelect.value, qaCli: qaCliSelect.value, cols, rows }),
         });
         if (!r.ok) { const err = await r.json().catch(() => ({})); throw new Error(err.error || r.statusText); }
       } catch (e) {
@@ -728,25 +1073,29 @@
       }
       connectPtyWs(archObj, ARCH_TERM_ID, archStatus);
       connectPtyWs(devObj,  DEV_TERM_ID,  devStatus);
+      if (qaDir) connectPtyWs(qaObj, QA_TERM_ID, qaStatus);
     });
 
     // ── Relay bar ────────────────────────────────────────────────────────────
     const inboxBadge    = document.getElementById('inboxBadge');
     const devToArchBtn  = document.getElementById('devToArchBtn');
+    const devToQaBtn    = document.getElementById('devToQaBtn');
     const watchdogBtn   = document.getElementById('watchdogBtn');
     const watchdogBadge = document.getElementById('watchdogBadge');
     let inboxBadgeTimer    = null;
     let watchdogBadgeTimer = null;
     let watchdogActive     = false;
 
-    function showInboxBadge(from, to, queueLen) {
+    function showInboxBadge(from, to, queueLen, priority) {
       clearTimeout(inboxBadgeTimer);
-      const fromRole = from === 'arch' ? 'Arch' : (from === 'dev' ? 'Dev' : from);
-      const toRole   = to.endsWith('-arch') ? 'Arch' : 'Dev';
-      const arrow    = `${fromRole} → ${toRole}`;
+      const fromRole = from === 'arch' ? 'PA' : from === 'qa' ? 'QA' : from === 'dev' ? 'Dev' : from;
+      const toRole   = to.endsWith('-arch') ? 'PA' : to.endsWith('-qa') ? 'QA' : 'Dev';
+      const urgentTag = priority === 'urgent' ? ' 🚨' : '';
+      const arrow    = `${fromRole} → ${toRole}${urgentTag}`;
       inboxBadge.textContent = queueLen ? `${arrow} (queued: ${queueLen})` : `${arrow} ✓`;
       inboxBadge.style.display = 'inline-block';
-      inboxBadgeTimer = setTimeout(() => { inboxBadge.style.display = 'none'; }, 4000);
+      // Urgent messages stay visible longer
+      inboxBadgeTimer = setTimeout(() => { inboxBadge.style.display = 'none'; }, priority === 'urgent' ? 8000 : 4000);
     }
 
     function flashBtn(btn, ok) {
@@ -785,18 +1134,96 @@
         if (!text.trim()) { flashBtn(devToArchBtn, false); return; }
         const res = await fetch('/notify', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ to: 'arch', roomId, message: '[MANUAL REVIEW] Developer latest activity:\n' + text.trim().slice(-2000) }),
+          body: JSON.stringify({ to: 'arch', from: 'dev', roomId, message: '[MANUAL REVIEW] Developer latest activity:\n' + text.trim().slice(-2000) }),
         });
         flashBtn(devToArchBtn, res.ok);
       } catch { flashBtn(devToArchBtn, false); }
     });
 
-    // ── Init: load room, connect event WS, auto-connect PTY WS ──────────────
+    devToQaBtn.addEventListener('click', async () => {
+      try {
+        const { text } = await fetch('/pty/buffer?termId=' + DEV_TERM_ID).then(r => r.json());
+        if (!text.trim()) { flashBtn(devToQaBtn, false); return; }
+        const res = await fetch('/notify', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ to: 'qa', from: 'arch', roomId, message: '[MANUAL QA REQUEST] Please test the Developer\'s recent work:\n' + text.trim().slice(-2000) }),
+        });
+        flashBtn(devToQaBtn, res.ok);
+      } catch { flashBtn(devToQaBtn, false); }
+    });
+
+    // ── Memory panel ─────────────────────────────────────────────────────────
+    const memoryBtn      = document.getElementById('memoryBtn');
+    const memoryPanel    = document.getElementById('memoryPanel');
+    const memoryTextarea = document.getElementById('memoryTextarea');
+    const memorySaveBtn  = document.getElementById('memorySaveBtn');
+    const memoryCloseBtn = document.getElementById('memoryCloseBtn');
+    const memoryDocsList = document.getElementById('memoryDocsList');
+    const memoryDot      = document.getElementById('memoryDot');
+
+    async function openMemoryPanel() {
+      memoryPanel.style.display = 'flex';
+      memoryTextarea.value = '加载中…';
+      memoryDocsList.innerHTML = '<div class="mem-docs-empty">加载中…</div>';
+      try {
+        const [memRes, infoRes] = await Promise.all([
+          fetch(`/rooms/${roomId}/memory`).then(r => r.json()),
+          fetch(`/rooms/${roomId}/memory?info=1`).then(r => r.json()),
+        ]);
+        memoryTextarea.value = memRes.content || '';
+        memoryDot.style.display = memRes.content?.trim() ? 'block' : 'none';
+        // Render ai-docs file lists
+        memoryDocsList.innerHTML = '';
+        const { archFiles = [], devFiles = [] } = infoRes;
+        if (!archFiles.length && !devFiles.length) {
+          memoryDocsList.innerHTML = '<div class="mem-docs-empty">未检测到 ai-docs 目录</div>';
+        } else {
+          if (archFiles.length) {
+            const g = document.createElement('div'); g.className = 'mem-docs-group';
+            g.innerHTML = `<div class="mem-docs-group-label">📁 archDir/ai-docs/</div>` +
+              archFiles.map(f => `<span class="mem-docs-file">${escHtml(f)}</span>`).join('');
+            memoryDocsList.appendChild(g);
+          }
+          if (devFiles.length) {
+            const g = document.createElement('div'); g.className = 'mem-docs-group';
+            g.innerHTML = `<div class="mem-docs-group-label">📁 devDir/ai-docs/</div>` +
+              devFiles.map(f => `<span class="mem-docs-file">${escHtml(f)}</span>`).join('');
+            memoryDocsList.appendChild(g);
+          }
+        }
+      } catch { memoryTextarea.value = '加载失败'; }
+    }
+
+    memoryBtn.addEventListener('click', openMemoryPanel);
+    memoryCloseBtn.addEventListener('click', () => { memoryPanel.style.display = 'none'; });
+    memoryPanel.addEventListener('click', e => { if (e.target === memoryPanel) memoryPanel.style.display = 'none'; });
+
+    memorySaveBtn.addEventListener('click', async () => {
+      memorySaveBtn.textContent = '保存中…'; memorySaveBtn.disabled = true;
+      try {
+        await fetch(`/rooms/${roomId}/memory`, {
+          method: 'PUT', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content: memoryTextarea.value }),
+        });
+        memoryDot.style.display = memoryTextarea.value.trim() ? 'block' : 'none';
+        memorySaveBtn.textContent = '✓ 已保存';
+        setTimeout(() => { memorySaveBtn.textContent = '保存'; memorySaveBtn.disabled = false; }, 1500);
+      } catch {
+        memorySaveBtn.textContent = '保存失败';
+        setTimeout(() => { memorySaveBtn.textContent = '保存'; memorySaveBtn.disabled = false; }, 1500);
+      }
+    });
+
+    // Check on init whether room has memory (to show dot)
+    fetch(`/rooms/${roomId}/memory`).then(r => r.json()).then(d => {
+      if (d.content?.trim()) memoryDot.style.display = 'block';
+    }).catch(() => {});
+
+    // ── Init ─────────────────────────────────────────────────────────────────
     async function init() {
       const room = await loadRoom();
       connectEventWs();
 
-      // Use server-reported alive status (avoids WS open/4001 race condition)
       if (room?.archAlive) {
         connectPtyWs(archObj, ARCH_TERM_ID, archStatus);
       } else {
@@ -807,12 +1234,23 @@
       } else {
         if (devStatus) devStatus.textContent = '○ 未启动';
       }
+      if (room?.qaDir) {
+        if (room?.qaAlive) {
+          connectPtyWs(qaObj, QA_TERM_ID, qaStatus);
+        } else {
+          if (qaStatus) qaStatus.textContent = '○ 未启动';
+        }
+      }
 
-      // Neither PTY running → auto-open session picker so user doesn't have to hunt for the button
+      // Neither arch nor dev running → auto-open session picker
       if (!room?.archAlive && !room?.devAlive) {
-        selectedArch = null; selectedDev = null; updateStartBtn();
+        selectedArch = currentRoom?.archSessionId || null;
+        selectedDev  = currentRoom?.devSessionId  || null;
+        selectedQa   = currentRoom?.qaSessionId   || null;
+        updateStartBtn();
         loadSessionsFor('arch', archDirInput.value.trim());
         loadSessionsFor('dev',  devDirInput.value.trim());
+        if (qaDirInput.value.trim()) loadSessionsFor('qa', qaDirInput.value.trim());
         sessionPicker.style.display = 'flex';
       }
     }
