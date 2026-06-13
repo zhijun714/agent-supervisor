@@ -3,6 +3,8 @@
 > Multi-role AI coding orchestrator — Architect, Developer and QA agents in real PTY terminals.
 
 > ⚠️ **这是个人自用的 vibe coding 玩具，随手做着玩的，代码质量和稳定性请自行评估，别太认真。**
+>
+> 目前以 Claude Code CLI 为主，其他 CLI（Gemini / Codex / Kimi）均有不同程度的 bug，凑合能用。
 
 多角色 AI 编程协作工具。在浏览器中并排运行**产品架构师**、**开发工程师**和**QA 工程师**三个 Agent，每个 Agent 都运行在真实的 PTY 终端里，拥有完整的工具访问权限。
 
