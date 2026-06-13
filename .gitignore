@@ -1,4 +1,30 @@
 node_modules/
+
+# Runtime state (machine-specific, may contain private paths)
 rooms.json
-*.png
+room-memories/
+
+# Secrets
+.env
+
+# Generated files (rebuilt on server start)
+/tmp/
+
+# macOS
+.DS_Store
 *.bak
+
+# Images (binary, not useful in source)
+*.png
+!screenshot.png
+
+# Build output
+public/app.js
+public/app.js.map
+dist/
+
+# Demo video (hosted on GitHub CDN, not committed)
+demo.mp4
+
+# codegraph index (machine-generated)
+.codegraph/

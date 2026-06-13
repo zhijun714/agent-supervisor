@@ -1,21 +1,42 @@
 {
-  "name": "supervisor",
+  "name": "agent-supervisor",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "Multi-role AI coding orchestrator — run Architect, Developer, and QA agents side-by-side in the browser with real PTY terminals",
+  "main": "src/server.ts",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "postinstall": "chmod +x node_modules/node-pty/prebuilds/darwin-arm64/spawn-helper 2>/dev/null || true",
-    "start": "node server.js",
-    "open": "node server.js & sleep 1 && open http://localhost:3458"
+    "start": "npm run build && tsx src/server.ts",
+    "dev": "tsx src/server.ts",
+    "build": "node build.mjs",
+    "typecheck": "tsc --noEmit && tsc -p frontend/tsconfig.json --noEmit",
+    "open": "npm run build && tsx src/server.ts & sleep 1 && open http://localhost:3458",
+    "postinstall": "chmod +x node_modules/node-pty/prebuilds/darwin-arm64/spawn-helper 2>/dev/null || true"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "keywords": [
+    "ai-agent",
+    "multi-agent",
+    "claude",
+    "gemini",
+    "llm",
+    "coding-agent",
+    "developer-tools"
+  ],
+  "author": "zhijun <zhouzhijun@oschina.cn>",
+  "license": "MIT",
   "type": "module",
   "dependencies": {
-    "@enderfga/claw-orchestrator": "^4.1.1",
     "node-pty": "^1.1.0",
-    "ws": "^8.21.0"
+    "ws": "^8.21.0",
+    "xterm": "^5.3.0",
+    "xterm-addon-fit": "^0.8.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.19.21",
+    "@types/ws": "^8.18.1",
+    "esbuild": "^0.25.12",
+    "tsx": "^4.22.4",
+    "typescript": "^5.9.3"
+  },
+  "optionalDependencies": {
+    "@larksuiteoapi/node-sdk": "^1.66.1"
   }
 }
