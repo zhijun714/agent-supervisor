@@ -1,0 +1,27 @@
+{
+  "rotation": {
+    "enabled": false,
+    "rawBufThreshold": 180000,
+    "sessionMinMs": 1800000,
+    "checkpointWaitMs": 60000,
+    "boundaryPatterns": ["[TASK_COMPLETE]", "验收通过", "ok -"]
+  },
+  "distiller": {
+    "enabled": false,
+    "debounceMs": 300000,
+    "maxTransLen": 40000,
+    "model": "claude-haiku-4-5-20251001"
+  },
+  "inbox": {
+    "idleMs": 2000,
+    "idleMsResume": 8000
+  },
+  "review": {
+    "cooldownMs": 60000,
+    "minContentLen": 500
+  },
+  "watchdog": {
+    "intervalMs": 300000,
+    "idleThresholdMs": 300000
+  }
+}

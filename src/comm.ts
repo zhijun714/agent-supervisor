@@ -1,6 +1,7 @@
 import { rooms } from './state.js'
 import { broadcast } from './state.js'
 import { feishuState, startFeishu as _feishuStart, stopFeishu as _feishuStop, feishuSend as _feishuSend } from './comm-feishu.js'
+import { getPendingKnowledge, approveKnowledge, rejectKnowledge } from './distiller.js'
 import type { AdapterStatus } from './types.js'
 
 export function getAdapterStatus(adapter: string | null | undefined): AdapterStatus {
@@ -34,6 +35,23 @@ export async function startComm(adapter: string | null | undefined): Promise<voi
         }
         if (!targetRoomId) { console.log('[comm] no target room for incoming message'); return }
         console.log(`[comm:${adapter}] incoming → room ${targetRoomId}: ${text.slice(0, 80)}`)
+
+        // Check if this is a knowledge distillation approval/rejection
+        const normalised = text.trim().toLowerCase()
+        if (getPendingKnowledge(targetRoomId)) {
+          if (normalised === 'ok' || normalised === '确认' || normalised === 'approve' || normalised === 'yes') {
+            const ok = approveKnowledge(targetRoomId)
+            broadcast({ type: 'comm_message_received', roomId: targetRoomId, adapter, text, msgId })
+            broadcast({ type: 'knowledge_approved', roomId: targetRoomId, ok })
+            return
+          } else if (normalised === '取消' || normalised === 'cancel' || normalised === 'reject' || normalised === 'no') {
+            rejectKnowledge(targetRoomId)
+            broadcast({ type: 'comm_message_received', roomId: targetRoomId, adapter, text, msgId })
+            broadcast({ type: 'knowledge_rejected', roomId: targetRoomId })
+            return
+          }
+        }
+
         _inboxSend?.(`${targetRoomId}-arch`, 'user', text)
         broadcast({ type: 'comm_message_received', roomId: targetRoomId, adapter, text, msgId })
       },

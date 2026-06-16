@@ -1,10 +1,12 @@
+import { cfg } from './config.js'
+
 // PTY buffer sizes
 export const TEXT_BUF_MAX = 12_288
 export const RAW_BUF_MAX  = 262_144
 
-// Inbox delivery timing
-export const INBOX_IDLE_MS        = 2_000
-export const INBOX_IDLE_MS_RESUME = 8_000
+// Inbox delivery timing (configurable via supervisor.config.json → inbox)
+export const INBOX_IDLE_MS        = cfg.inbox.idleMs
+export const INBOX_IDLE_MS_RESUME = cfg.inbox.idleMsResume
 
 // Notify dedup window
 export const NOTIFY_DEDUP_TTL = 20_000
@@ -19,13 +21,13 @@ export const CODEX_QUOTA_RETRY_MS = 60 * 60 * 1000
 // Trust prompt dismiss debounce
 export const TRUST_DISMISS_DEBOUNCE_MS = 5_000
 
-// Auto-review
-export const REVIEW_COOLDOWN_MS     = 60_000
-export const REVIEW_MIN_CONTENT_LEN = 500
+// Auto-review (configurable via supervisor.config.json → review)
+export const REVIEW_COOLDOWN_MS     = cfg.review.cooldownMs
+export const REVIEW_MIN_CONTENT_LEN = cfg.review.minContentLen
 
-// Watchdog
-export const WATCHDOG_INTERVAL_MS       = 5 * 60 * 1000
-export const WATCHDOG_IDLE_THRESHOLD_MS = 5 * 60 * 1000
+// Watchdog (configurable via supervisor.config.json → watchdog)
+export const WATCHDOG_INTERVAL_MS       = cfg.watchdog.intervalMs
+export const WATCHDOG_IDLE_THRESHOLD_MS = cfg.watchdog.idleThresholdMs
 
 // WebSocket ping interval
 export const WS_PING_INTERVAL_MS = 30_000

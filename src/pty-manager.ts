@@ -1,10 +1,13 @@
 import pty from 'node-pty'
+import { readFileSync, writeFileSync } from 'fs'
 import { ptys, rooms, broadcast, getRoomState } from './state.js'
 import { parseTermId, stripAnsi } from './utils.js'
 import { CLI_PROFILES } from './cli-profiles.js'
 import { commSend } from './comm.js'
 import { inboxSend, getInbox, inboxOnIdle } from './inbox.js'
 import { TEXT_BUF_MAX, RAW_BUF_MAX, INBOX_IDLE_MS, INBOX_IDLE_MS_RESUME, CODEX_QUOTA_PATTERNS, CODEX_QUOTA_RETRY_MS, TRUST_DISMISS_DEBOUNCE_MS, KIMI_QUICK_EXIT_WINDOW_MS } from './constants.js'
+import { maybeMarkRotationReady, maybeRotate, onSessionSpawned } from './rotation.js'
+import { triggerDistiller } from './distiller.js'
 
 function parseClaudeResetMs(text: string): number | null {
   const m = text.match(/resets\s+(\d+)(?::(\d+))?\s*(am|pm)\s+\(([^)]+)\)/i)
@@ -150,6 +153,45 @@ function handleKimiExit(termId: string, entry: (typeof ptys)[string]): void {
   }, 1000)
 }
 
+async function spawnNewSessionForRotation(termId: string, ledger: string): Promise<void> {
+  const { roomId, role } = parseTermId(termId)
+  const room = rooms[roomId]
+  const entry = ptys[termId]
+  if (!room || !entry) return
+
+  const cli     = (room as Record<string, string>)[`${role}Cli`] || 'claude'
+  const profile = CLI_PROFILES[cli] ?? CLI_PROFILES.claude
+  const model   = (room as Record<string, string>)[`${role}Model`] || profile.defaultModel
+  const projectDir = entry.projectDir
+  const cols = entry.proc.cols
+  const rows = entry.proc.rows
+
+  const promptFile = role === 'arch' ? `/tmp/arch-prompt-${roomId}.md`
+                   : role === 'qa'   ? `/tmp/qa-prompt-${roomId}.md`
+                   :                   `/tmp/dev-prompt-${roomId}.md`
+
+  // Append RECONCILE section to existing prompt so the new session picks up where the old left off
+  if (ledger) {
+    try {
+      const existing = readFileSync(promptFile, 'utf8')
+      const reconcile = `\n\n---\n\n## RECONCILE（上次会话延续）\n\n` +
+        `以下是上次会话结束前的工作摘要，请在此基础上继续：\n\n${ledger}\n`
+      writeFileSync(promptFile, existing + reconcile)
+    } catch(e) {
+      console.error('[rotation] reconcile prompt write error:', e)
+    }
+  }
+
+  broadcast({ type: 'rotation_spawning', termId, roomId, role })
+  spawnTerminal(termId, projectDir, null, cols, rows, false, model, cli)
+
+  const archTermId = `${roomId}-arch`
+  if (role !== 'arch' && ptys[archTermId]?.alive) {
+    inboxSend(archTermId, 'system',
+      `[SUPERVISOR] ${role} 会话已自动轮转（上下文过长），已在新会话中注入工作摘要，请继续安排任务。`)
+  }
+}
+
 export function spawnTerminal(
   termId: string,
   projectDir: string,
@@ -204,11 +246,14 @@ export function spawnTerminal(
   const trustKey   = profile.trustKey   || '\r'
   let lastTrustDismissAt = 0
 
+  onSessionSpawned(termId)
+
   proc.onData(data => {
     if (!entry.alive) return
     const strippedData = stripAnsi(data as string)
     entry.textBuf = (entry.textBuf + strippedData).slice(-TEXT_BUF_MAX)
     entry.rawBuf  = (entry.rawBuf + data).slice(-RAW_BUF_MAX)
+    maybeMarkRotationReady(termId, entry)
 
     if (cli === 'kimi' && !entry._kimiExited && entry._kimiExitMarker && strippedData.includes(entry._kimiExitMarker)) {
       entry._kimiExited = true
@@ -249,7 +294,15 @@ export function spawnTerminal(
     const box = getInbox(termId)
     clearTimeout(box.idleTimer ?? undefined)
     const idleDelay = entry.resumeInterrupt ? INBOX_IDLE_MS_RESUME : INBOX_IDLE_MS
-    box.idleTimer = setTimeout(() => { box.idleTimer = null; inboxOnIdle(termId) }, idleDelay)
+    box.idleTimer = setTimeout(async () => {
+      box.idleTimer = null
+      inboxOnIdle(termId)
+      const cur = ptys[termId]
+      if (cur) {
+        void maybeRotate(termId, cur, spawnNewSessionForRotation)
+        void triggerDistiller(termId)
+      }
+    }, idleDelay)
 
     if (trustTexts.length > 0 && Date.now() - lastTrustDismissAt > TRUST_DISMISS_DEBOUNCE_MS) {
       const recent = entry.textBuf.slice(-600)

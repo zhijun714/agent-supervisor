@@ -184,6 +184,75 @@ function initRoomDetail(roomId: string) {
   let qaObj: ReturnType<typeof createTerminal> | null = null
   function ensureQaTerminal() { if (!qaObj) qaObj = createTerminal('qaTermEl') }
 
+  // ── Mobile tab switching ──────────────────────────────────────────────────
+  const mobileQuery = window.matchMedia('(max-width: 768px)')
+
+  function fitRole(role: string) {
+    requestAnimationFrame(() => {
+      try {
+        if (role === 'arch') archObj.fitAddon.fit()
+        else if (role === 'dev') devObj.fitAddon.fit()
+        else if (role === 'qa' && qaObj) qaObj.fitAddon.fit()
+      } catch(e) {}
+    })
+  }
+
+  function showMobilePanel(role: string) {
+    for (const r of ['arch', 'dev', 'qa']) {
+      const panel = document.getElementById(r + 'Panel')
+      if (!panel) continue
+      panel.style.display = r === role ? 'flex' : 'none'
+    }
+    fitRole(role)
+  }
+
+  function applyMobileLayout() {
+    const mobile = mobileQuery.matches
+    const tabsEl = document.getElementById('mobileTabs')
+    if (!tabsEl) return
+    if (mobile) {
+      tabsEl.style.display = 'flex'
+      const active = tabsEl.querySelector('.mobile-tab.active') as HTMLElement | null
+      showMobilePanel(active?.dataset.panel || 'arch')
+    } else {
+      tabsEl.style.display = 'none'
+      // Restore desktop: all panels visible (QA only if enabled)
+      document.getElementById('archPanel')!.style.display = ''
+      document.getElementById('devPanel')!.style.display  = ''
+      if (qaObj) document.getElementById('qaPanel')!.style.display = 'flex'
+      requestAnimationFrame(() => {
+        try { archObj.fitAddon.fit(); devObj.fitAddon.fit() } catch(e) {}
+        if (qaObj) try { qaObj.fitAddon.fit() } catch(e) {}
+      })
+    }
+  }
+
+  function activateMobileTab(role: string) {
+    const tabsEl = document.getElementById('mobileTabs')
+    if (!tabsEl) return
+    tabsEl.querySelectorAll('.mobile-tab').forEach(t => t.classList.remove('active'))
+    const tab = tabsEl.querySelector(`.mobile-tab[data-panel="${role}"]`) as HTMLElement | null
+    tab?.classList.add('active')
+    if (mobileQuery.matches) showMobilePanel(role)
+  }
+
+  function showQaMobileTab() {
+    const qaTab = document.getElementById('mobileQaTab')
+    if (qaTab) qaTab.style.display = ''
+  }
+
+  // Tab click handlers
+  document.getElementById('mobileTabs')?.querySelectorAll('.mobile-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      const role = (tab as HTMLElement).dataset.panel!
+      if (role === 'qa' && !qaObj) return
+      activateMobileTab(role)
+    })
+  })
+
+  mobileQuery.addEventListener('change', applyMobileLayout)
+  applyMobileLayout()
+
   const archStatus = document.getElementById('archStatus')!
   const devStatus  = document.getElementById('devStatus')!
   const qaStatus   = document.getElementById('qaStatus')!
@@ -618,6 +687,7 @@ function initRoomDetail(roomId: string) {
         qaDirHdr.style.display = 'flex'
         document.getElementById('qaPanel')!.style.display = 'flex'
         document.getElementById('devToQaBtn')!.style.display = ''
+        showQaMobileTab()
         qaDirInput.value    = currentRoom.qaDir
         qaSilentChk.checked = currentRoom.qaSilent || false
         const loadedQaCli = currentRoom.qaCli || 'claude'
@@ -886,8 +956,10 @@ function initRoomDetail(roomId: string) {
       qaDirDisplay.textContent = qaDir
       document.getElementById('qaPanel')!.style.display = 'flex'
       document.getElementById('devToQaBtn')!.style.display = ''
+      showQaMobileTab()
     }
     sessionPicker.style.display = 'none'
+    applyMobileLayout()
     archObj.term.focus()
     try { archObj.fitAddon.fit() } catch(e) {}
     try { devObj.fitAddon.fit()  } catch(e) {}
@@ -925,6 +997,13 @@ function initRoomDetail(roomId: string) {
     } catch (e: any) {
       sessionPicker.style.display = 'flex'
       alert('启动失败: ' + e.message); return
+    }
+    // Sync currentRoom session IDs so Session Picker pre-selects correctly next time.
+    // For "新建" (null), session_captured WS event will update it once the new session is detected.
+    if (currentRoom) {
+      currentRoom.archSessionId = selectedArch
+      currentRoom.devSessionId  = selectedDev
+      currentRoom.qaSessionId   = selectedQa
     }
     connectPtyWs(archObj, ARCH_TERM_ID, archStatus)
     connectPtyWs(devObj,  DEV_TERM_ID,  devStatus)

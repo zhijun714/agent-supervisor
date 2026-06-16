@@ -36,11 +36,14 @@
 - **收件箱消息队列** — 向任意 Agent 发送指令，在下一个空闲时刻送达
 - **自动 Review 循环** — Dev 空闲时，架构师自动审查进度并在必要时介入
 - **Watchdog 看门狗** — 检测卡死会话并自动唤醒
-- **会话持久化** — 重启后自动恢复上次的 Claude / Gemini / Codex / Kimi 会话
+- **会话持久化** — 重启后自动恢复上次的 Claude / Gemini / Codex / Kimi 会话；Session Picker 默认预选上次使用的会话
 - **跨会话记忆** — 房间级决策日志 + 项目 `ai-docs/` 文档在每次启动时自动注入 prompt
 - **飞书集成** — 架构师通过长连接向你推送通知；你的回复直接进入架构师收件箱
 - **运行时换模型** — 不中断会话直接切换模型
 - **多房间** — 并行运行多个项目，每个项目有独立的 Agent 组合
+- **移动端支持** — 标签栏切换架构师 / 开发 / QA 终端，适配手机浏览器
+- **局域网访问** — 默认绑定 `0.0.0.0`，启动时打印 LAN IP，局域网设备可直接访问
+- **运行时配置** — `supervisor.config.json` 覆盖所有可调参数，无需重新部署
 
 ---
 
@@ -100,6 +103,32 @@ npm install @larksuiteoapi/node-sdk
 
 在 UI 的 **📡 通信** 面板中按房间开启。架构师会将任务里程碑和决策请求直接推送到你的飞书；你的回复会进入架构师的收件箱。
 
+### 运行时参数调节
+
+在项目根目录创建 `supervisor.config.json`，无需重启即可覆盖默认参数（深度合并）：
+
+```json
+{
+  "review": {
+    "enabled": true,
+    "idleMs": 120000
+  },
+  "watchdog": {
+    "enabled": true,
+    "intervalMs": 30000,
+    "stuckThresholdMs": 180000
+  },
+  "distiller": {
+    "enabled": false
+  },
+  "rotation": {
+    "enabled": false
+  }
+}
+```
+
+完整可调参数列表见 [DESIGN.md](DESIGN.md)。
+
 ### 跨会话记忆
 
 - **房间记忆** — 关键决策通过 `update-room-memory` 脚本记录到 `room-memories/<roomId>.md`，下次启动时自动注入 prompt
@@ -136,7 +165,10 @@ agent-supervisor/
 │   ├── scripts.ts         # Notify 脚本生成
 │   ├── sessions.ts        # 会话列表
 │   ├── types.ts           # TypeScript 类型定义
-│   └── constants.ts       # 可调节的超时与缓冲区大小
+│   ├── constants.ts       # 可调节的超时与缓冲区大小
+│   ├── config.ts          # 运行时配置加载（supervisor.config.json）
+│   ├── rotation.ts        # 会话轮转（上下文溢出自动续接，默认关闭）
+│   └── distiller.ts       # 知识蒸馏（PTY 输出提炼 → ai-docs，默认关闭）
 ├── frontend/
 │   └── app.ts             # 浏览器 UI（esbuild 打包 → public/app.js）
 ├── public/
@@ -146,6 +178,7 @@ agent-supervisor/
 │   ├── dev.md             # 开发工程师系统提示模板
 │   └── qa.md              # QA 工程师系统提示模板
 ├── build.mjs              # esbuild 前端打包脚本
+├── supervisor.config.json # 运行时参数覆盖（可选，深度合并到默认值）
 ├── .env.example           # 环境变量模板
 └── room-memories/         # 房间决策日志（已加入 .gitignore）
 ```

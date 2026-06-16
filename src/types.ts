@@ -60,6 +60,13 @@ export interface InboxState {
   idleTimer: ReturnType<typeof setTimeout> | null
 }
 
+export interface RotationRoleState {
+  ready: boolean
+  pendingAt: number
+  ledger: string
+  spawnedAt: number
+}
+
 export interface RoomState {
   autoReviewEnabled: boolean
   lastReviewAt: number
@@ -67,6 +74,8 @@ export interface RoomState {
   watchdogEnabled: boolean
   watchdogTimer: ReturnType<typeof setInterval> | null
   lastActivityTs: { arch: number; dev: number; qa: number }
+  rotation: { arch: RotationRoleState; dev: RotationRoleState; qa: RotationRoleState }
+  distillLastAt: number
 }
 
 export interface Session {
