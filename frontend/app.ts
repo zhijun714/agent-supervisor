@@ -1,5 +1,6 @@
 import { Terminal } from 'xterm'
 import { FitAddon } from 'xterm-addon-fit'
+import { THEMES, applyTheme, getSavedTheme, loadServerTheme, saveTheme, toXtermTheme, THEME_KEY } from './themes'
 
 function escHtml(s: unknown): string {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
@@ -203,6 +204,12 @@ function initShell() {
 
   homeTabBtn.addEventListener('click', () => setActive(null))
 
+  // Theme the shell chrome (sidebar/home). Selector lives in the room header
+  // (inside iframes); here we just apply + live-sync via the 'storage' event.
+  applyTheme(getSavedTheme())
+  loadServerTheme().then(t => applyTheme(t))
+  window.addEventListener('storage', e => { if (e.key === THEME_KEY) applyTheme(getSavedTheme()) })
+
   loadRooms()
   pollTimer = setInterval(loadRooms, 3000)
   window.addEventListener('beforeunload', () => clearInterval(pollTimer!))
@@ -254,20 +261,10 @@ function initRoomDetail(roomId: string) {
   // all-on; loadRoom() corrects this from the actual room config.
   const roleEnabled: Record<string, boolean> = { arch: true, dev: true, qa: false }
 
-  const XTERM_THEME = {
-    background:'#0a0e14', foreground:'#c9d1d9', cursor:'#58a6ff', cursorAccent:'#0a0e14',
-    selectionBackground:'rgba(88,166,255,0.2)',
-    black:'#0d1117', red:'#f85149', green:'#3fb950', yellow:'#e3b341',
-    blue:'#58a6ff', magenta:'#bc8cff', cyan:'#39c5cf', white:'#c9d1d9',
-    brightBlack:'#484f58', brightRed:'#ff7b72', brightGreen:'#56d364',
-    brightYellow:'#e3b341', brightBlue:'#79c0ff', brightMagenta:'#d2a8ff',
-    brightCyan:'#56d4dd', brightWhite:'#f0f6fc',
-  }
-
   function createTerminal(containerId: string) {
     const container = document.getElementById(containerId)!
     const term = new Terminal({
-      theme: XTERM_THEME, fontFamily: '"SF Mono","Fira Code","Cascadia Code",Menlo,monospace',
+      theme: toXtermTheme(THEMES[getSavedTheme()]) as any, fontFamily: '"SF Mono","Fira Code","Cascadia Code",Menlo,monospace',
       fontSize: 13, lineHeight: 1.25, cursorBlink: true, scrollback: 10000, allowTransparency: false,
     })
     const fitAddon = new FitAddon()
@@ -302,7 +299,37 @@ function initRoomDetail(roomId: string) {
   const archObj = createTerminal('archTermEl')
   const devObj  = createTerminal('devTermEl')
   let qaObj: ReturnType<typeof createTerminal> | null = null
-  function ensureQaTerminal() { if (!qaObj) qaObj = createTerminal('qaTermEl') }
+  function ensureQaTerminal() {
+    if (!qaObj) {
+      qaObj = createTerminal('qaTermEl')
+      applyTheme(getSavedTheme(), liveTerms())
+    }
+  }
+
+  // ── Theme ──────────────────────────────────────────────────────────────────
+  function liveTerms(): { options: Record<string, unknown> }[] {
+    return [archObj.term, devObj.term, qaObj?.term].filter(Boolean) as any
+  }
+  function applyCurrentTheme() { applyTheme(getSavedTheme(), liveTerms()) }
+  applyCurrentTheme()                                   // chrome + terminals, from cache
+  loadServerTheme().then(t => applyTheme(t, liveTerms())) // correct from server prefs
+  // Live-sync when another open tab / the shell changes the theme.
+  window.addEventListener('storage', e => { if (e.key === THEME_KEY) applyCurrentTheme() })
+
+  const themeSelect = document.getElementById('themeSelect') as HTMLSelectElement | null
+  if (themeSelect) {
+    for (const [key, s] of Object.entries(THEMES)) {
+      const o = document.createElement('option')
+      o.value = key; o.textContent = s.name
+      themeSelect.appendChild(o)
+    }
+    themeSelect.value = getSavedTheme()
+    loadServerTheme().then(t => { themeSelect.value = t })
+    themeSelect.addEventListener('change', () => {
+      saveTheme(themeSelect.value)
+      applyTheme(themeSelect.value, liveTerms())
+    })
+  }
 
   // ── Mobile tab switching ──────────────────────────────────────────────────
   const mobileQuery = window.matchMedia('(max-width: 768px)')

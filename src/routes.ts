@@ -11,7 +11,7 @@ import { writeRoomScripts } from './scripts.js'
 import { spawnTerminal, scheduleLimitRetry } from './pty-manager.js'
 import { startWatchdog, stopWatchdog } from './watchdog.js'
 import { inboxSend, markNotifyDelivered } from './inbox.js'
-import { ROOT_DIR, ROOM_MEMORIES_DIR, PORT } from './config.js'
+import { ROOT_DIR, ROOM_MEMORIES_DIR, PORT, PREFS_FILE } from './config.js'
 import type { Room } from './types.js'
 
 export function createRequestHandler(port: number) {
@@ -50,6 +50,12 @@ export function createRequestHandler(port: number) {
     }
 
     // ── Simple GET API routes (no body needed) ─────────────────────────────
+    if (req.method === 'GET' && url.pathname === '/prefs') {
+      let prefs: Record<string, unknown> = {}
+      try { prefs = JSON.parse(readFileSync(PREFS_FILE, 'utf8')) } catch {}
+      json(prefs); return
+    }
+
     if (req.method === 'GET' && url.pathname === '/pty/buffer') {
       const termId = url.searchParams.get('termId')!
       const e = ptys[termId]
@@ -128,6 +134,15 @@ export function createRequestHandler(port: number) {
     req.on('end', async () => {
       let parsed: Record<string, unknown> = {}
       try { parsed = JSON.parse(body) } catch {}
+
+      // Global UI prefs (e.g. terminal theme) — durable backup beside localStorage.
+      if (req.method === 'PUT' && url.pathname === '/prefs') {
+        let prefs: Record<string, unknown> = {}
+        try { prefs = JSON.parse(readFileSync(PREFS_FILE, 'utf8')) } catch {}
+        prefs = { ...prefs, ...parsed }
+        try { writeFileSync(PREFS_FILE, JSON.stringify(prefs, null, 2)) } catch (e) { json({ error: (e as Error).message }, 500); return }
+        json({ ok: true, prefs }); return
+      }
 
       if (req.method === 'POST' && url.pathname === '/rooms') {
         const { name, archDir, devDir, qaDir, archSilent, devSilent, qaSilent, archModel, devModel, qaModel, archCli, devCli, qaCli } = parsed as Partial<Room> & { name?: string }

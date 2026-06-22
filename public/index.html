@@ -20,6 +20,7 @@
     --amber: #e3b341;
     --red: #f85149;
     --purple: #bc8cff;
+    --term-bg: #0a0e14;
   }
 
   html, body { height: 100%; background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; font-size: 14px; overflow: hidden; }
@@ -235,15 +236,15 @@
   .ph-inbox-badge:hover { background: rgba(227,179,65,0.32); }
   .ph-inbox-badge.has-urgent { background: rgba(248,81,73,0.15); border-color: rgba(248,81,73,0.45); color: var(--red); }
 
-  .term-wrap { flex: 1; min-height: 0; overflow: hidden; background: #0a0e14; cursor: text; outline: 2px solid transparent; transition: outline-color 0.15s; padding-right: 6px; }
+  .term-wrap { flex: 1; min-height: 0; overflow: hidden; background: var(--term-bg, #0a0e14); cursor: text; outline: 2px solid transparent; transition: outline-color 0.15s; padding-right: 6px; }
   .term-wrap.focused { outline-color: #58a6ff; }
-  .term-wrap .xterm { height: 100%; padding: 3px 4px; background: #0a0e14; }
-  .term-wrap .xterm-viewport { overflow-y: auto !important; background: #0a0e14 !important; scrollbar-width: none; }
+  .term-wrap .xterm { height: 100%; padding: 3px 4px; background: var(--term-bg, #0a0e14); }
+  .term-wrap .xterm-viewport { overflow-y: auto !important; background: var(--term-bg, #0a0e14) !important; scrollbar-width: none; }
   .term-wrap .xterm-viewport::-webkit-scrollbar { display: none; }
-  .term-wrap .xterm-scroll-area { background: #0a0e14 !important; }
-  .term-wrap .xterm-screen { cursor: text; background: #0a0e14; }
-  .term-wrap .xterm-screen canvas { display: block; background: #0a0e14; }
-  .term-wrap .xterm-rows { background: #0a0e14; }
+  .term-wrap .xterm-scroll-area { background: var(--term-bg, #0a0e14) !important; }
+  .term-wrap .xterm-screen { cursor: text; background: var(--term-bg, #0a0e14); }
+  .term-wrap .xterm-screen canvas { display: block; background: var(--term-bg, #0a0e14); }
+  .term-wrap .xterm-rows { background: var(--term-bg, #0a0e14); }
   .xterm .xterm-helper-textarea { position: fixed !important; left: -4px !important; top: 0 !important; width: 1px !important; height: 1px !important; opacity: 0.001 !important; z-index: -1 !important; }
 
   /* ── SESSION PICKER ─────────────────────────────────────────────────────── */
@@ -459,6 +460,7 @@
         <span class="hdr-dir-path" id="qaDirDisplay">—</span>
       </div>
     </div>
+    <select class="hdr-btn" id="themeSelect" title="终端主题"></select>
     <button class="hdr-btn" id="connectBtn">Sessions</button>
     <div id="statusDot"></div>
     <span id="statusLabel">Disconnected</span>

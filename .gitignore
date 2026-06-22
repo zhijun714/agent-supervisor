@@ -2,6 +2,7 @@ node_modules/
 
 # Runtime state (machine-specific, may contain private paths)
 rooms.json
+ui-prefs.json
 room-memories/
 
 # Secrets
