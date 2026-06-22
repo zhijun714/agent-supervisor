@@ -4,8 +4,8 @@ import type { WebSocket } from 'ws'
 export interface Room {
   id: string
   name: string
-  archDir: string
-  devDir: string
+  archDir: string | null
+  devDir: string | null
   qaDir: string | null
   archSilent: boolean
   devSilent: boolean
@@ -19,6 +19,7 @@ export interface Room {
   archSessionId?: string
   devSessionId?: string
   qaSessionId?: string
+  pinned?: boolean
   commEnabled?: boolean
   commAdapter?: string | null
   commReceiveId?: string

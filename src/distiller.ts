@@ -56,6 +56,7 @@ export async function triggerDistiller(termId: string): Promise<void> {
   if (role === 'arch') return
   const room = rooms[roomId]
   if (!room) return
+  if (!room.devDir) return
 
   const rs = getRoomState(roomId)
   const now = Date.now()

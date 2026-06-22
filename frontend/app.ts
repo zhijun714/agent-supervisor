@@ -11,14 +11,14 @@ if (roomId) {
   document.getElementById('roomDetailView')!.style.display = 'flex'
   initRoomDetail(roomId)
 } else {
-  document.getElementById('roomListView')!.style.display = 'flex'
-  initRoomList()
+  document.getElementById('roomShellView')!.style.display = 'flex'
+  initShell()
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
 // ROOM LIST
 // ══════════════════════════════════════════════════════════════════════════════
-function initRoomList() {
+function initShell() {
   const roomCards    = document.getElementById('roomCards')!
   const newRoomBtn   = document.getElementById('newRoomBtn')!
   const modal        = document.getElementById('newRoomModal')!
@@ -32,12 +32,111 @@ function initRoomList() {
   const nrCancel     = document.getElementById('nrCancel')!
   const nrCreate     = document.getElementById('nrCreate') as HTMLButtonElement
 
+  // ── Tab shell state ──────────────────────────────────────────────────────
+  const shellMain   = document.getElementById('shellMain')!
+  const shellHome   = document.getElementById('shellHome')!
+  const openTabsEl  = document.getElementById('openTabs')!
+  const homeTabBtn  = document.getElementById('homeTabBtn')!
+  // roomId → { iframe, tab } for each opened room (kept alive in the background)
+  const openTabs = new Map<string, { iframe: HTMLIFrameElement; tab: HTMLElement }>()
+  const tabOrder: string[] = []
+  let activeRoomId: string | null = null
+  let latestRooms: any[] = []
+
+  function statusDots(r: any): string {
+    const dot = (on: boolean, cls: string) => `<div class="room-status-dot ${cls} ${on ? 'on' : ''}"></div>`
+    return [
+      r.archDir ? dot(r.archAlive, 'arch') : '',
+      r.devDir  ? dot(r.devAlive, '')      : '',
+      r.qaDir   ? dot(r.qaAlive, 'qa')     : '',
+    ].join('')
+  }
+
+  const ACTIVE_KEY = 'sup-active-room'
+
+  function setActive(id: string | null) {
+    activeRoomId = id
+    shellHome.style.display = id === null ? 'flex' : 'none'
+    for (const [rid, { iframe }] of openTabs) iframe.style.display = rid === id ? 'block' : 'none'
+    homeTabBtn.classList.toggle('active', id === null)
+    openTabs.forEach(({ tab }, rid) => tab.classList.toggle('active', rid === id))
+    document.title = id ? ('Supervisor — ' + (latestRooms.find(r => r.id === id)?.name || 'Room')) : 'Supervisor'
+    try { id ? localStorage.setItem(ACTIVE_KEY, id) : localStorage.removeItem(ACTIVE_KEY) } catch {}
+  }
+
+  // opts.activate: switch to the tab (default true). opts.persist: mark pinned
+  // server-side so it survives refresh/restart (default true; false during restore).
+  function openRoomTab(id: string, opts: { activate?: boolean; persist?: boolean } = {}) {
+    const activate = opts.activate !== false
+    const persist  = opts.persist  !== false
+    if (!openTabs.has(id)) {
+      const iframe = document.createElement('iframe')
+      iframe.src = '/?room=' + id
+      iframe.style.display = 'none'
+      shellMain.appendChild(iframe)
+      const tab = document.createElement('div')
+      tab.className = 'room-tab'
+      openTabsEl.appendChild(tab)
+      openTabs.set(id, { iframe, tab })
+      tabOrder.push(id)
+      tab.addEventListener('click', (e) => {
+        if ((e.target as HTMLElement).classList.contains('room-tab-close')) return
+        setActive(id)
+      })
+      renderTabs()
+      if (persist) {
+        fetch('/rooms/' + id, {
+          method: 'PUT', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ pinned: true }),
+        }).catch(() => {})
+      }
+    }
+    if (activate) setActive(id)
+  }
+
+  function closeRoomTab(id: string) {
+    const entry = openTabs.get(id)
+    if (!entry) return
+    entry.iframe.remove()
+    entry.tab.remove()
+    openTabs.delete(id)
+    tabOrder.splice(tabOrder.indexOf(id), 1)
+    if (activeRoomId === id) setActive(tabOrder.length ? tabOrder[tabOrder.length - 1] : null)
+    // Unpin server-side AND kill the room's backend terminals.
+    fetch('/rooms/' + id + '/close', { method: 'POST' }).catch(() => {})
+  }
+
+  function renderTabs() {
+    for (const id of tabOrder) {
+      const entry = openTabs.get(id); if (!entry) continue
+      const r = latestRooms.find(x => x.id === id) || { name: id, id }
+      entry.tab.innerHTML =
+        `<div class="room-tab-dots">${statusDots(r)}</div>` +
+        `<div class="room-tab-name">${escHtml(r.name)}</div>` +
+        `<div class="room-tab-close" title="关闭标签">✕</div>`
+      entry.tab.querySelector('.room-tab-close')!.addEventListener('click', (e) => { e.stopPropagation(); closeRoomTab(id) })
+    }
+  }
+
   let pollTimer: ReturnType<typeof setInterval> | null = null
+  let restored = false
 
   async function loadRooms() {
     try {
-      const list = await fetch('/rooms').then(r => r.json())
-      renderRooms(list)
+      latestRooms = await fetch('/rooms').then(r => r.json())
+      // First successful load: re-open tabs for rooms pinned server-side, so the
+      // sidebar survives page refresh and server restart.
+      if (!restored) {
+        restored = true
+        const pinned = latestRooms.filter(r => r.pinned)
+        for (const r of pinned) openRoomTab(r.id, { activate: false, persist: false })
+        let active: string | null = null
+        try { active = localStorage.getItem(ACTIVE_KEY) } catch {}
+        if (active && openTabs.has(active)) setActive(active)
+        else setActive(null)
+      }
+      renderRooms(latestRooms)
+      renderTabs()
     } catch {}
   }
 
@@ -50,8 +149,20 @@ function initRoomList() {
     for (const r of list) {
       const card = document.createElement('div')
       card.className = 'room-card'
+      const archDot = r.archDir
+        ? `<div class="room-status-dot arch ${r.archAlive ? 'on' : ''}" title="PA ${r.archAlive ? 'running' : 'stopped'}"></div>`
+        : ''
+      const devDot = r.devDir
+        ? `<div class="room-status-dot ${r.devAlive ? 'on' : ''}" title="Dev ${r.devAlive ? 'running' : 'stopped'}"></div>`
+        : ''
       const qaDot = r.qaDir
         ? `<div class="room-status-dot qa ${r.qaAlive ? 'on' : ''}" title="QA ${r.qaAlive ? 'running' : 'stopped'}"></div>`
+        : ''
+      const archDir = r.archDir
+        ? `<div class="room-card-dir"><span class="room-card-dir-label arch">PA</span><span class="room-card-dir-path">${escHtml(r.archDir)}</span></div>`
+        : ''
+      const devDir = r.devDir
+        ? `<div class="room-card-dir"><span class="room-card-dir-label dev">Dev</span><span class="room-card-dir-path">${escHtml(r.devDir)}</span></div>`
         : ''
       const qaDir = r.qaDir
         ? `<div class="room-card-dir"><span class="room-card-dir-label qa">QA</span><span class="room-card-dir-path">${escHtml(r.qaDir)}</span></div>`
@@ -60,14 +171,14 @@ function initRoomList() {
         <div class="room-card-top">
           <div class="room-card-name">${escHtml(r.name)}</div>
           <div class="room-card-status">
-            <div class="room-status-dot arch ${r.archAlive ? 'on' : ''}" title="PA ${r.archAlive ? 'running' : 'stopped'}"></div>
-            <div class="room-status-dot ${r.devAlive ? 'on' : ''}" title="Dev ${r.devAlive ? 'running' : 'stopped'}"></div>
+            ${archDot}
+            ${devDot}
             ${qaDot}
           </div>
         </div>
         <div class="room-card-dirs">
-          <div class="room-card-dir"><span class="room-card-dir-label arch">PA</span><span class="room-card-dir-path">${escHtml(r.archDir)}</span></div>
-          <div class="room-card-dir"><span class="room-card-dir-label dev">Dev</span><span class="room-card-dir-path">${escHtml(r.devDir)}</span></div>
+          ${archDir}
+          ${devDir}
           ${qaDir}
         </div>
         <div class="room-card-actions">
@@ -76,18 +187,21 @@ function initRoomList() {
         </div>`
       card.querySelector('.room-open-btn')!.addEventListener('click', (e) => {
         e.stopPropagation()
-        location.href = '/?room=' + r.id
+        openRoomTab(r.id)
       })
       card.querySelector('.room-delete-btn')!.addEventListener('click', async (e) => {
         e.stopPropagation()
         if (!confirm(`Delete room "${r.name}"? Running terminals will be killed.`)) return
+        closeRoomTab(r.id)
         await fetch('/rooms/' + r.id, { method: 'DELETE' })
         loadRooms()
       })
-      card.addEventListener('click', () => { location.href = '/?room=' + r.id })
+      card.addEventListener('click', () => { openRoomTab(r.id) })
       roomCards.appendChild(card)
     }
   }
+
+  homeTabBtn.addEventListener('click', () => setActive(null))
 
   loadRooms()
   pollTimer = setInterval(loadRooms, 3000)
@@ -106,7 +220,7 @@ function initRoomList() {
     const archDir = nrArchDir.value.trim()
     const devDir  = nrDevDir.value.trim()
     const qaDir   = nrQaDir.value.trim() || null
-    if (!archDir || !devDir) { alert('请填写产品架构师和开发工程师的目录'); return }
+    if (!archDir && !devDir && !qaDir) { alert('请至少填写一个角色的目录'); return }
     nrCreate.disabled = true; nrCreate.textContent = '创建中…'
     try {
       const r = await fetch('/rooms', {
@@ -116,7 +230,9 @@ function initRoomList() {
       if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.error || r.statusText) }
       const { room } = await r.json()
       modal.style.display = 'none'
-      location.href = '/?room=' + room.id
+      nrCreate.disabled = false; nrCreate.textContent = 'Create Room'
+      await loadRooms()
+      openRoomTab(room.id)
     } catch (e: any) {
       alert('创建失败: ' + e.message)
       nrCreate.disabled = false; nrCreate.textContent = 'Create Room'
@@ -133,6 +249,10 @@ function initRoomDetail(roomId: string) {
   const ARCH_TERM_ID = roomId + '-arch'
   const DEV_TERM_ID  = roomId + '-dev'
   const QA_TERM_ID   = roomId + '-qa'
+
+  // Which roles this room has enabled (derived from its dirs). Defaults assume
+  // all-on; loadRoom() corrects this from the actual room config.
+  const roleEnabled: Record<string, boolean> = { arch: true, dev: true, qa: false }
 
   const XTERM_THEME = {
     background:'#0a0e14', foreground:'#c9d1d9', cursor:'#58a6ff', cursorAccent:'#0a0e14',
@@ -216,13 +336,13 @@ function initRoomDetail(roomId: string) {
       showMobilePanel(active?.dataset.panel || 'arch')
     } else {
       tabsEl.style.display = 'none'
-      // Restore desktop: all panels visible (QA only if enabled)
-      document.getElementById('archPanel')!.style.display = ''
-      document.getElementById('devPanel')!.style.display  = ''
-      if (qaObj) document.getElementById('qaPanel')!.style.display = 'flex'
+      // Restore desktop: show only enabled roles' panels
+      document.getElementById('archPanel')!.style.display = roleEnabled.arch ? 'flex' : 'none'
+      document.getElementById('devPanel')!.style.display  = roleEnabled.dev  ? 'flex' : 'none'
+      document.getElementById('qaPanel')!.style.display   = roleEnabled.qa   ? 'flex' : 'none'
       requestAnimationFrame(() => {
-        try { archObj.fitAddon.fit(); devObj.fitAddon.fit() } catch(e) {}
-        if (qaObj) try { qaObj.fitAddon.fit() } catch(e) {}
+        try { if (roleEnabled.arch) archObj.fitAddon.fit(); if (roleEnabled.dev) devObj.fitAddon.fit() } catch(e) {}
+        if (qaObj && roleEnabled.qa) try { qaObj.fitAddon.fit() } catch(e) {}
       })
     }
   }
@@ -245,6 +365,7 @@ function initRoomDetail(roomId: string) {
   document.getElementById('mobileTabs')?.querySelectorAll('.mobile-tab').forEach(tab => {
     tab.addEventListener('click', () => {
       const role = (tab as HTMLElement).dataset.panel!
+      if (!roleEnabled[role]) return
       if (role === 'qa' && !qaObj) return
       activateMobileTab(role)
     })
@@ -654,7 +775,20 @@ function initRoomDetail(roomId: string) {
   const archDirDisplay  = document.getElementById('archDirDisplay')!
   const devDirDisplay   = document.getElementById('devDirDisplay')!
   const qaDirDisplay    = document.getElementById('qaDirDisplay')!
+  const archDirHdr      = document.getElementById('archDirHdr')!
+  const devDirHdr       = document.getElementById('devDirHdr')!
   const qaDirHdr        = document.getElementById('qaDirHdr')!
+
+  // Show/hide a role's terminal panel, header dir chip, and mobile tab.
+  function applyRoleVisibility(role: string, enabled: boolean) {
+    roleEnabled[role] = enabled
+    const panel = document.getElementById(role + 'Panel')
+    if (panel) panel.style.display = enabled ? (mobileQuery.matches ? 'none' : 'flex') : 'none'
+    const hdr = role === 'arch' ? archDirHdr : role === 'dev' ? devDirHdr : qaDirHdr
+    if (hdr) hdr.style.display = enabled ? 'flex' : 'none'
+    const mtab = document.querySelector(`#mobileTabs .mobile-tab[data-panel="${role}"]`) as HTMLElement | null
+    if (mtab) mtab.style.display = enabled ? '' : 'none'
+  }
 
   let currentRoom: any = null
   async function loadRoom() {
@@ -663,13 +797,7 @@ function initRoomDetail(roomId: string) {
       currentRoom = rooms.find((r: any) => r.id === roomId)
       if (!currentRoom) { alert('Room not found'); location.href = '/'; return null }
       roomNameDisplay.textContent = currentRoom.name
-      archDirDisplay.textContent  = currentRoom.archDir
-      devDirDisplay.textContent   = currentRoom.devDir
       document.title = 'Supervisor — ' + currentRoom.name
-      archDirInput.value    = currentRoom.archDir
-      devDirInput.value     = currentRoom.devDir
-      archSilentChk.checked = currentRoom.archSilent
-      devSilentChk.checked  = currentRoom.devSilent
       const loadedArchCli = currentRoom.archCli || 'claude'
       const loadedDevCli  = currentRoom.devCli  || 'claude'
       archCliSelect.value = loadedArchCli
@@ -679,14 +807,31 @@ function initRoomDetail(roomId: string) {
       setModelBadge(archModelBadge, currentRoom.archModel, loadedArchCli)
       setModelBadge(devModelBadge,  currentRoom.devModel,  loadedDevCli)
       setWatchdogUI(currentRoom.watchdogEnabled || false)
-      archRestartBtn.style.display = ''
-      devRestartBtn.style.display  = ''
+
+      if (currentRoom.archDir) {
+        archDirDisplay.textContent = currentRoom.archDir
+        archDirInput.value    = currentRoom.archDir
+        archSilentChk.checked = currentRoom.archSilent
+        archRestartBtn.style.display = ''
+        applyRoleVisibility('arch', true)
+      } else {
+        archDirInput.value = ''
+        applyRoleVisibility('arch', false)
+      }
+
+      if (currentRoom.devDir) {
+        devDirDisplay.textContent = currentRoom.devDir
+        devDirInput.value    = currentRoom.devDir
+        devSilentChk.checked = currentRoom.devSilent
+        devRestartBtn.style.display = ''
+        applyRoleVisibility('dev', true)
+      } else {
+        devDirInput.value = ''
+        applyRoleVisibility('dev', false)
+      }
 
       if (currentRoom.qaDir) {
         qaDirDisplay.textContent = currentRoom.qaDir
-        qaDirHdr.style.display = 'flex'
-        document.getElementById('qaPanel')!.style.display = 'flex'
-        document.getElementById('devToQaBtn')!.style.display = ''
         showQaMobileTab()
         qaDirInput.value    = currentRoom.qaDir
         qaSilentChk.checked = currentRoom.qaSilent || false
@@ -695,7 +840,17 @@ function initRoomDetail(roomId: string) {
         populateModelSelect(qaModelSelect, loadedQaCli, currentRoom.qaModel)
         setModelBadge(qaModelBadge, currentRoom.qaModel, loadedQaCli)
         qaRestartBtn.style.display = ''
+        applyRoleVisibility('qa', true)
+      } else {
+        qaDirInput.value = ''
+        applyRoleVisibility('qa', false)
       }
+
+      // Relay buttons only make sense when both endpoints are enabled.
+      document.getElementById('devToArchBtn')!.style.display =
+        (currentRoom.archDir && currentRoom.devDir) ? '' : 'none'
+      document.getElementById('devToQaBtn')!.style.display =
+        (currentRoom.devDir && currentRoom.qaDir) ? '' : 'none'
 
       if (currentRoom.archSessionId) selectedArch = currentRoom.archSessionId
       if (currentRoom.devSessionId)  selectedDev  = currentRoom.devSessionId
@@ -725,7 +880,11 @@ function initRoomDetail(roomId: string) {
   roomNameInput.addEventListener('blur', saveRoomName)
   roomNameInput.addEventListener('keydown', (e: KeyboardEvent) => { if (e.key === 'Enter') roomNameInput.blur(); if (e.key === 'Escape') { roomNameInput.style.display = 'none'; roomNameDisplay.style.display = '' } })
 
-  document.getElementById('backBtn')!.addEventListener('click', () => { location.href = '/' })
+  // When embedded in the shell iframe, the left tab bar is the navigation —
+  // hide the in-page back button (it would otherwise nest the shell inside the iframe).
+  const backBtn = document.getElementById('backBtn')!
+  if (window.parent !== window.self) backBtn.style.display = 'none'
+  else backBtn.addEventListener('click', () => { location.href = '/' })
 
   // ── Session picker ─────────────────────────────────────────────────────────
   const connectBtn      = document.getElementById('connectBtn')!
@@ -850,15 +1009,12 @@ function initRoomDetail(roomId: string) {
   })
 
   function updateStartBtn() {
-    startBtn.disabled = false
-    const a = selectedArch ? selectedArch.slice(0, 8) + '…' : '新建'
-    const d = selectedDev  ? selectedDev.slice(0, 8)  + '…' : '新建'
-    if (qaDirInput && qaDirInput.value.trim()) {
-      const q = selectedQa ? selectedQa.slice(0, 8) + '…' : '新建'
-      startBtn.textContent = `开始  (PA: ${a}  /  Dev: ${d}  /  QA: ${q})`
-    } else {
-      startBtn.textContent = `开始  (PA: ${a}  /  Dev: ${d})`
-    }
+    const parts: string[] = []
+    if (archDirInput.value.trim()) parts.push(`PA: ${selectedArch ? selectedArch.slice(0, 8) + '…' : '新建'}`)
+    if (devDirInput.value.trim())  parts.push(`Dev: ${selectedDev ? selectedDev.slice(0, 8) + '…' : '新建'}`)
+    if (qaDirInput.value.trim())   parts.push(`QA: ${selectedQa ? selectedQa.slice(0, 8) + '…' : '新建'}`)
+    startBtn.disabled = parts.length === 0
+    startBtn.textContent = parts.length ? `开始  (${parts.join('  /  ')})` : '开始  (请至少填写一个目录)'
   }
   archCliSelect.addEventListener('change', () => { populateModelSelect(archModelSelect, archCliSelect.value, null); updateStartBtn(); if (sessionPicker.style.display !== 'none') loadSessionsFor('arch', archDirInput.value.trim()) })
   devCliSelect.addEventListener('change',  () => { populateModelSelect(devModelSelect,  devCliSelect.value,  null); updateStartBtn(); if (sessionPicker.style.display !== 'none') loadSessionsFor('dev',  devDirInput.value.trim()) })
@@ -934,9 +1090,9 @@ function initRoomDetail(roomId: string) {
     selectedDev  = currentRoom?.devSessionId  || null
     selectedQa   = currentRoom?.qaSessionId   || null
     updateStartBtn()
-    loadSessionsFor('arch', archDirInput.value.trim())
-    loadSessionsFor('dev',  devDirInput.value.trim())
-    if (qaDirInput.value.trim()) loadSessionsFor('qa', qaDirInput.value.trim())
+    if (archDirInput.value.trim()) loadSessionsFor('arch', archDirInput.value.trim())
+    if (devDirInput.value.trim())  loadSessionsFor('dev',  devDirInput.value.trim())
+    if (qaDirInput.value.trim())   loadSessionsFor('qa',   qaDirInput.value.trim())
     sessionPicker.style.display = 'flex'
   })
   sessionPicker.addEventListener('click', (e: MouseEvent) => { if (e.target === sessionPicker) sessionPicker.style.display = 'none' })
@@ -948,25 +1104,33 @@ function initRoomDetail(roomId: string) {
     const archDir = archDirInput.value.trim()
     const devDir  = devDirInput.value.trim()
     const qaDir   = qaDirInput.value.trim() || null
-    if (!archDir || !devDir) { alert('请填写目录'); return }
+    if (!archDir && !devDir && !qaDir) { alert('请至少填写一个角色的目录'); return }
 
+    // Apply per-role visibility from the chosen dirs.
+    applyRoleVisibility('arch', !!archDir)
+    applyRoleVisibility('dev',  !!devDir)
+    if (archDir) archDirDisplay.textContent = archDir
+    if (devDir)  devDirDisplay.textContent  = devDir
     if (qaDir) {
       ensureQaTerminal()
-      qaDirHdr.style.display = 'flex'
       qaDirDisplay.textContent = qaDir
-      document.getElementById('qaPanel')!.style.display = 'flex'
-      document.getElementById('devToQaBtn')!.style.display = ''
       showQaMobileTab()
+      applyRoleVisibility('qa', true)
+    } else {
+      applyRoleVisibility('qa', false)
     }
+    document.getElementById('devToArchBtn')!.style.display = (archDir && devDir) ? '' : 'none'
+    document.getElementById('devToQaBtn')!.style.display = (devDir && qaDir) ? '' : 'none'
+
     sessionPicker.style.display = 'none'
     applyMobileLayout()
-    archObj.term.focus()
-    try { archObj.fitAddon.fit() } catch(e) {}
-    try { devObj.fitAddon.fit()  } catch(e) {}
+    if (archDir) { archObj.term.focus(); try { archObj.fitAddon.fit() } catch(e) {} }
+    else if (devDir) { devObj.term.focus() }
+    if (devDir) { try { devObj.fitAddon.fit()  } catch(e) {} }
     if (qaDir) { try { qaObj!.fitAddon.fit() } catch(e) {} }
 
     const dirChanged = currentRoom && (
-      archDir !== currentRoom.archDir || devDir !== currentRoom.devDir ||
+      archDir !== (currentRoom.archDir || '') || devDir !== (currentRoom.devDir || '') ||
       archSilentChk.checked !== currentRoom.archSilent || devSilentChk.checked !== currentRoom.devSilent ||
       qaDir !== (currentRoom.qaDir || null) || qaSilentChk.checked !== (currentRoom.qaSilent || false) ||
       archCliSelect.value !== (currentRoom.archCli || 'claude') ||
@@ -982,11 +1146,11 @@ function initRoomDetail(roomId: string) {
           archCli: archCliSelect.value, devCli: devCliSelect.value, qaCli: qaCliSelect.value,
         }),
       }).catch(() => {})
-      if (currentRoom) { currentRoom.archDir = archDir; currentRoom.devDir = devDir; currentRoom.qaDir = qaDir; currentRoom.archCli = archCliSelect.value; currentRoom.devCli = devCliSelect.value; currentRoom.qaCli = qaCliSelect.value }
-      archDirDisplay.textContent = archDir; devDirDisplay.textContent = devDir
+      if (currentRoom) { currentRoom.archDir = archDir || null; currentRoom.devDir = devDir || null; currentRoom.qaDir = qaDir; currentRoom.archCli = archCliSelect.value; currentRoom.devCli = devCliSelect.value; currentRoom.qaCli = qaCliSelect.value }
     }
-    const cols = Math.min(archObj.term.cols, devObj.term.cols)
-    const rows = Math.min(archObj.term.rows, devObj.term.rows)
+    const enabledObjs = [archDir && archObj, devDir && devObj, qaDir && qaObj].filter(Boolean) as ReturnType<typeof createTerminal>[]
+    const cols = enabledObjs.length ? Math.min(...enabledObjs.map(o => o.term.cols)) : 80
+    const rows = enabledObjs.length ? Math.min(...enabledObjs.map(o => o.term.rows)) : 24
 
     try {
       const r = await fetch('/rooms/' + roomId + '/spawn', {
@@ -1005,9 +1169,9 @@ function initRoomDetail(roomId: string) {
       currentRoom.devSessionId  = selectedDev
       currentRoom.qaSessionId   = selectedQa
     }
-    connectPtyWs(archObj, ARCH_TERM_ID, archStatus)
-    connectPtyWs(devObj,  DEV_TERM_ID,  devStatus)
-    if (qaDir) connectPtyWs(qaObj!, QA_TERM_ID, qaStatus)
+    if (archDir) connectPtyWs(archObj, ARCH_TERM_ID, archStatus)
+    if (devDir)  connectPtyWs(devObj,  DEV_TERM_ID,  devStatus)
+    if (qaDir)   connectPtyWs(qaObj!,  QA_TERM_ID,   qaStatus)
   })
 
   // ── Relay bar ──────────────────────────────────────────────────────────────
@@ -1327,39 +1491,38 @@ function initRoomDetail(roomId: string) {
     restoreInboxBadges()
     connectEventWs()
 
-    if (room?.archAlive) {
-      connectPtyWs(archObj, ARCH_TERM_ID, archStatus)
-    } else {
-      archStatus.textContent = '○ 未启动'
+    if (room?.archDir) {
+      if (room?.archAlive) connectPtyWs(archObj, ARCH_TERM_ID, archStatus)
+      else archStatus.textContent = '○ 未启动'
     }
-    if (room?.devAlive) {
-      connectPtyWs(devObj, DEV_TERM_ID, devStatus)
-    } else {
-      devStatus.textContent = '○ 未启动'
+    if (room?.devDir) {
+      if (room?.devAlive) connectPtyWs(devObj, DEV_TERM_ID, devStatus)
+      else devStatus.textContent = '○ 未启动'
     }
     if (room?.qaDir) {
       ensureQaTerminal()
-      if (room?.qaAlive) {
-        connectPtyWs(qaObj!, QA_TERM_ID, qaStatus)
-      } else {
-        qaStatus.textContent = '○ 未启动'
-      }
-    }
-    if (room?.archAlive || room?.devAlive) {
-      setTimeout(() => {
-        try { archObj.fitAddon.fit(); devObj.fitAddon.fit() } catch(e) {}
-        archObj.term.focus()
-      }, 300)
+      if (room?.qaAlive) connectPtyWs(qaObj!, QA_TERM_ID, qaStatus)
+      else qaStatus.textContent = '○ 未启动'
     }
 
-    if (!room?.archAlive && !room?.devAlive) {
+    const archLive = room?.archDir && room?.archAlive
+    const devLive  = room?.devDir  && room?.devAlive
+    const qaLive   = room?.qaDir   && room?.qaAlive
+    if (archLive || devLive || qaLive) {
+      setTimeout(() => {
+        try { if (archLive) archObj.fitAddon.fit(); if (devLive) devObj.fitAddon.fit() } catch(e) {}
+        if (qaLive) try { qaObj!.fitAddon.fit() } catch(e) {}
+        ;(archLive ? archObj : devLive ? devObj : qaObj!)?.term.focus()
+      }, 300)
+    } else {
+      // No enabled role is running → open the session picker to start.
       selectedArch = currentRoom?.archSessionId || null
       selectedDev  = currentRoom?.devSessionId  || null
       selectedQa   = currentRoom?.qaSessionId   || null
       updateStartBtn()
-      loadSessionsFor('arch', archDirInput.value.trim())
-      loadSessionsFor('dev',  devDirInput.value.trim())
-      if (qaDirInput.value.trim()) loadSessionsFor('qa', qaDirInput.value.trim())
+      if (archDirInput.value.trim()) loadSessionsFor('arch', archDirInput.value.trim())
+      if (devDirInput.value.trim())  loadSessionsFor('dev',  devDirInput.value.trim())
+      if (qaDirInput.value.trim())   loadSessionsFor('qa',   qaDirInput.value.trim())
       sessionPicker.style.display = 'flex'
     }
   }

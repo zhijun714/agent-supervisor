@@ -89,8 +89,8 @@ export function createRequestHandler(port: number) {
       const room = rooms[id]
       if (!room) { json({ error: 'Room not found' }, 404); return }
       if (url.searchParams.get('info') === '1') {
-        const archFiles = (() => { try { return readdirSync(join(room.archDir, 'ai-docs')).filter(f => f.endsWith('.md')) } catch { return [] } })()
-        const devFiles  = (() => { try { return readdirSync(join(room.devDir,  'ai-docs')).filter(f => f.endsWith('.md')) } catch { return [] } })()
+        const archFiles = (() => { try { return room.archDir ? readdirSync(join(room.archDir, 'ai-docs')).filter(f => f.endsWith('.md')) : [] } catch { return [] } })()
+        const devFiles  = (() => { try { return room.devDir  ? readdirSync(join(room.devDir,  'ai-docs')).filter(f => f.endsWith('.md')) : [] } catch { return [] } })()
         json({ archFiles, devFiles }); return
       }
       let content = ''
@@ -131,14 +131,11 @@ export function createRequestHandler(port: number) {
 
       if (req.method === 'POST' && url.pathname === '/rooms') {
         const { name, archDir, devDir, qaDir, archSilent, devSilent, qaSilent, archModel, devModel, qaModel, archCli, devCli, qaCli } = parsed as Partial<Room> & { name?: string }
-        if (!archDir || !devDir) { json({ error: 'archDir and devDir required' }, 400); return }
-        for (const dir of [archDir, devDir]) {
+        if (!archDir && !devDir && !qaDir) { json({ error: '至少需要启用一个角色（填写至少一个目录）' }, 400); return }
+        for (const dir of [archDir, devDir, qaDir]) {
+          if (!dir) continue
           try { if (!statSync(dir as string).isDirectory()) throw new Error() }
           catch { json({ error: `Directory not found: ${dir}` }, 400); return }
-        }
-        if (qaDir) {
-          try { if (!statSync(qaDir as string).isDirectory()) throw new Error() }
-          catch { json({ error: `Directory not found: ${qaDir}` }, 400); return }
         }
         const id = randomUUID().slice(0, 8)
         const now = Date.now()
@@ -147,7 +144,7 @@ export function createRequestHandler(port: number) {
         const effDevCli  = validClis.includes(devCli  as string) ? devCli  as string : 'claude'
         const effQaCli   = validClis.includes(qaCli   as string) ? qaCli   as string : 'claude'
         rooms[id] = {
-          id, name: (name as string) || 'New Room', archDir: archDir as string, devDir: devDir as string, qaDir: (qaDir as string) || null,
+          id, name: (name as string) || 'New Room', archDir: (archDir as string) || null, devDir: (devDir as string) || null, qaDir: (qaDir as string) || null,
           archSilent: !!(archSilent), devSilent: !!(devSilent), qaSilent: !!(qaSilent),
           archModel: (archModel as string) || CLI_PROFILES[effArchCli].defaultModel,
           devModel:  (devModel  as string) || CLI_PROFILES[effDevCli].defaultModel,
@@ -167,9 +164,9 @@ export function createRequestHandler(port: number) {
         const { name, archDir, devDir, qaDir, archSilent, devSilent, qaSilent, archModel, devModel, qaModel, archCli, devCli, qaCli } = parsed
         const validClis = Object.keys(CLI_PROFILES)
         if (name       !== undefined) rooms[id].name       = name as string
-        if (archDir    !== undefined) rooms[id].archDir    = archDir as string
-        if (devDir     !== undefined) rooms[id].devDir     = devDir as string
-        if (qaDir      !== undefined) rooms[id].qaDir      = qaDir as string || null
+        if (archDir    !== undefined) rooms[id].archDir    = (archDir as string) || null
+        if (devDir     !== undefined) rooms[id].devDir     = (devDir as string) || null
+        if (qaDir      !== undefined) rooms[id].qaDir      = (qaDir as string) || null
         if (archSilent !== undefined) rooms[id].archSilent = !!(archSilent)
         if (devSilent  !== undefined) rooms[id].devSilent  = !!(devSilent)
         if (qaSilent   !== undefined) rooms[id].qaSilent   = !!(qaSilent)
@@ -179,9 +176,26 @@ export function createRequestHandler(port: number) {
         if (archCli !== undefined && validClis.includes(archCli as string)) rooms[id].archCli = archCli as string
         if (devCli  !== undefined && validClis.includes(devCli  as string)) rooms[id].devCli  = devCli  as string
         if (qaCli   !== undefined && validClis.includes(qaCli   as string)) rooms[id].qaCli   = qaCli   as string
+        if ((parsed as { pinned?: unknown }).pinned !== undefined) rooms[id].pinned = !!(parsed as { pinned?: unknown }).pinned
         rooms[id].updatedAt = Date.now()
         saveRooms()
         json({ ok: true, room: rooms[id] }); return
+      }
+
+      // Close a tab: unpin it from the sidebar AND kill its backend terminals.
+      const closeMatch = url.pathname.match(/^\/rooms\/([^/]+)\/close$/)
+      if (req.method === 'POST' && closeMatch) {
+        const id = closeMatch[1]
+        if (!rooms[id]) { json({ error: 'Room not found' }, 404); return }
+        rooms[id].pinned = false
+        rooms[id].updatedAt = Date.now()
+        for (const role of ['arch', 'dev', 'qa']) {
+          const termId = `${id}-${role}`
+          if (ptys[termId]) { try { ptys[termId].proc.kill() } catch {}; delete ptys[termId] }
+        }
+        saveRooms()
+        broadcast({ type: 'room_closed', roomId: id })
+        json({ ok: true }); return
       }
 
       const memPutMatch = url.pathname.match(/^\/rooms\/([^/]+)\/memory$/)
@@ -260,13 +274,10 @@ export function createRequestHandler(port: number) {
         if (archCli && validClis.includes(archCli as string)) rooms[id].archCli = archCli as string
         if (devCli  && validClis.includes(devCli  as string)) rooms[id].devCli  = devCli  as string
         if (qaCli   && validClis.includes(qaCli   as string)) rooms[id].qaCli   = qaCli   as string
-        for (const dir of [room.archDir, room.devDir]) {
+        for (const dir of [room.archDir, room.devDir, room.qaDir]) {
+          if (!dir) continue
           try { if (!statSync(dir).isDirectory()) throw new Error() }
           catch { json({ error: `Directory not found: ${dir}` }, 400); return }
-        }
-        if (room.qaDir) {
-          try { if (!statSync(room.qaDir).isDirectory()) throw new Error() }
-          catch { json({ error: `Directory not found: ${room.qaDir}` }, 400); return }
         }
         const rArchCli = rooms[id].archCli || 'claude'
         const rDevCli  = rooms[id].devCli  || 'claude'
@@ -275,22 +286,26 @@ export function createRequestHandler(port: number) {
         if (devSessionId)  rooms[id].devSessionId  = devSessionId  as string
         if (qaSessionId)   rooms[id].qaSessionId   = qaSessionId   as string
         writeRoomScripts(id, room.archDir, room.devDir, rArchCli, rDevCli, rQaCli, (archSessionId as string) || null, (devSessionId as string) || null, (qaSessionId as string) || null)
-        spawnTerminal(`${id}-arch`, room.archDir, (archSessionId as string) || null, (cols as number) || 80, (rows as number) || 24, room.archSilent, room.archModel || 'claude-sonnet-4-6', rArchCli)
-        spawnTerminal(`${id}-dev`,  room.devDir,  (devSessionId  as string) || null, (cols as number) || 80, (rows as number) || 24, room.devSilent,  room.devModel  || 'claude-sonnet-4-6', rDevCli)
+        if (room.archDir) {
+          spawnTerminal(`${id}-arch`, room.archDir, (archSessionId as string) || null, (cols as number) || 80, (rows as number) || 24, room.archSilent, room.archModel || 'claude-sonnet-4-6', rArchCli)
+        }
+        if (room.devDir) {
+          spawnTerminal(`${id}-dev`,  room.devDir,  (devSessionId  as string) || null, (cols as number) || 80, (rows as number) || 24, room.devSilent,  room.devModel  || 'claude-sonnet-4-6', rDevCli)
+        }
         if (room.qaDir) {
           spawnTerminal(`${id}-qa`, room.qaDir, (qaSessionId as string) || null, (cols as number) || 80, (rows as number) || 24, room.qaSilent || false, room.qaModel || 'claude-sonnet-4-6', rQaCli)
         }
         rooms[id].updatedAt = Date.now()
         saveRooms()
         const _capturingDirs = new Set<string>()
-        if (!archSessionId && rArchCli === 'claude') { captureNewSession(room.archDir, id, 'arch'); _capturingDirs.add(room.archDir) }
-        if (!devSessionId  && rDevCli  === 'claude' && !_capturingDirs.has(room.devDir))  { captureNewSession(room.devDir, id, 'dev'); _capturingDirs.add(room.devDir) }
+        if (!archSessionId && rArchCli === 'claude' && room.archDir) { captureNewSession(room.archDir, id, 'arch'); _capturingDirs.add(room.archDir) }
+        if (!devSessionId  && rDevCli  === 'claude' && room.devDir && !_capturingDirs.has(room.devDir))  { captureNewSession(room.devDir, id, 'dev'); _capturingDirs.add(room.devDir) }
         if (!qaSessionId   && rQaCli   === 'claude' && room.qaDir && !_capturingDirs.has(room.qaDir)) captureNewSession(room.qaDir, id, 'qa')
-        if (!archSessionId && rArchCli === 'kimi') { captureNewKimiSession(room.archDir, id, 'arch'); _capturingDirs.add(room.archDir + ':kimi') }
-        if (!devSessionId  && rDevCli  === 'kimi' && !_capturingDirs.has(room.devDir + ':kimi'))  { captureNewKimiSession(room.devDir, id, 'dev'); _capturingDirs.add(room.devDir + ':kimi') }
+        if (!archSessionId && rArchCli === 'kimi' && room.archDir) { captureNewKimiSession(room.archDir, id, 'arch'); _capturingDirs.add(room.archDir + ':kimi') }
+        if (!devSessionId  && rDevCli  === 'kimi' && room.devDir && !_capturingDirs.has(room.devDir + ':kimi'))  { captureNewKimiSession(room.devDir, id, 'dev'); _capturingDirs.add(room.devDir + ':kimi') }
         if (!qaSessionId   && rQaCli   === 'kimi' && room.qaDir && !_capturingDirs.has(room.qaDir + ':kimi')) captureNewKimiSession(room.qaDir, id, 'qa')
-        if (!archSessionId && rArchCli === 'codex') captureNewCodexSession(room.archDir, id, 'arch')
-        if (!devSessionId  && rDevCli  === 'codex') captureNewCodexSession(room.devDir, id, 'dev')
+        if (!archSessionId && rArchCli === 'codex' && room.archDir) captureNewCodexSession(room.archDir, id, 'arch')
+        if (!devSessionId  && rDevCli  === 'codex' && room.devDir) captureNewCodexSession(room.devDir, id, 'dev')
         if (!qaSessionId   && rQaCli   === 'codex' && room.qaDir) captureNewCodexSession(room.qaDir, id, 'qa')
         json({ ok: true }); return
       }

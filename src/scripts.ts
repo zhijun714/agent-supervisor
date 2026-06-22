@@ -5,7 +5,8 @@ import { CLI_PROFILES } from './cli-profiles.js'
 import { ROOT_DIR, ROOM_MEMORIES_DIR, PORT } from './config.js'
 import type { MemoryContext } from './types.js'
 
-export function readAiDocs(dir: string): string {
+export function readAiDocs(dir: string | null): string {
+  if (!dir) return ''
   try {
     const docsDir = join(dir, 'ai-docs')
     return readdirSync(docsDir)
@@ -15,7 +16,7 @@ export function readAiDocs(dir: string): string {
   } catch { return '' }
 }
 
-export function buildMemoryContext(roomId: string, archDir: string, devDir: string): MemoryContext {
+export function buildMemoryContext(roomId: string, archDir: string | null, devDir: string | null): MemoryContext {
   let roomMem = ''
   try { roomMem = readFileSync(join(ROOM_MEMORIES_DIR, `${roomId}.md`), 'utf8') } catch {}
   const archDocs = readAiDocs(archDir)
@@ -34,8 +35,8 @@ export function buildMemoryContext(roomId: string, archDir: string, devDir: stri
 
 export function writeRoomScripts(
   roomId: string,
-  archDir: string,
-  devDir: string,
+  archDir: string | null,
+  devDir: string | null,
   archCli = 'claude',
   devCli = 'claude',
   qaCli = 'claude',
@@ -159,21 +160,21 @@ print("ok - user notified" if r.status == 200 else ("fail - " + text))
       .replace(/<switch-model-qa-script>/g,       switchQaScript)
       .replace(/<update-room-memory-script>/g,    memoryScript)
       .replace(/<notify-user-script>/g,           notifyUserScript)
-      .replace(/<archDir>/g,                      archDir)
-      .replace(/<devDir>/g,                       devDir)
+      .replace(/<archDir>/g,                      archDir || '')
+      .replace(/<devDir>/g,                       devDir || '')
       .replace(/<roomId>/g,                       roomId)
     const devContent = devBase
       .replace(/\/tmp\/notify-arch\.sh/g,         archScript)
       .replace(/<switch-model-dev-script>/g,      switchDevScript)
       .replace(/<update-room-memory-script>/g,    memoryScript)
-      .replace(/<archDir>/g,                      archDir)
-      .replace(/<devDir>/g,                       devDir)
+      .replace(/<archDir>/g,                      archDir || '')
+      .replace(/<devDir>/g,                       devDir || '')
       .replace(/<roomId>/g,                       roomId)
     const qaContent = qaBase
       .replace(/\/tmp\/notify-arch-from-qa\.sh/g, archFromQaScript)
       .replace(/<switch-model-qa-script>/g,       switchQaScript)
       .replace(/<update-room-memory-script>/g,    memoryScript)
-      .replace(/<devDir>/g,                       devDir)
+      .replace(/<devDir>/g,                       devDir || '')
       .replace(/<roomId>/g,                       roomId)
 
     // Inject room memory context only for new sessions (not resumes)
