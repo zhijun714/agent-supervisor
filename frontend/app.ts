@@ -69,6 +69,10 @@ function initShell() {
   const openTabs = new Map<string, { iframe: HTMLIFrameElement; tab: HTMLElement }>()
   let activeRoomId: string | null = null
   let latestRooms: any[] = []
+  let latestGroups: any[] = []
+
+  const UNGROUPED_ID = '__ungrouped__'
+  const GROUP_COLORS = ['#ff7b72','#ffa657','#e3b341','#56d364','#58a6ff','#bc8cff','#f78166','#8b949e']
 
   function statusDots(r: any): string {
     const dot = (on: boolean, cls: string) => `<div class="room-status-dot ${cls} ${on ? 'on' : ''}"></div>`
@@ -79,15 +83,17 @@ function initShell() {
     ].join('')
   }
 
-  // Sort opened rooms: pinned group first, then normal; each group by order asc.
-  function sortedOpenIds(): string[] {
+  function roomsInGroup(groupId: string): string[] {
     return latestRooms
-      .filter(r => r.opened && openTabs.has(r.id))
-      .sort((a, b) => {
-        if (!!a.pinned !== !!b.pinned) return b.pinned ? 1 : -1
-        return (a.order ?? 0) - (b.order ?? 0)
-      })
+      .filter(r => r.opened && (r.groupId || UNGROUPED_ID) === groupId && openTabs.has(r.id))
+      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
       .map(r => r.id)
+  }
+
+  function sortedOpenIds(): string[] {
+    return [...latestGroups]
+      .sort((a, b) => a.order - b.order)
+      .flatMap(g => roomsInGroup(g.id))
   }
 
   const ACTIVE_KEY = 'sup-active-room'
@@ -138,19 +144,19 @@ function initShell() {
         setActive(id)
       })
       if (persist) {
-        // Place in normal group at the end: find max order among non-pinned opened rooms
+        // Place in ungrouped at end
+        const groupId = UNGROUPED_ID
         const maxOrder = latestRooms
-          .filter(r => r.opened && !r.pinned)
+          .filter(r => r.opened && (r.groupId || UNGROUPED_ID) === groupId)
           .reduce((m, r) => Math.max(m, r.order ?? 0), -1)
-        // Optimistically update latestRooms so renderTabs places it correctly
         const lr = latestRooms.find(r => r.id === id)
-        if (lr) { lr.opened = true; lr.pinned = false; lr.order = maxOrder + 1 }
+        if (lr) { lr.opened = true; lr.groupId = groupId; lr.order = maxOrder + 1 }
         fetch('/rooms/' + id, {
           method: 'PUT', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ opened: true, pinned: false, order: maxOrder + 1 }),
+          body: JSON.stringify({ opened: true, groupId, order: maxOrder + 1 }),
         }).catch(() => {})
       }
-      renderTabs()
+      renderGroups()
     }
     if (activate) setActive(id)
   }
@@ -170,45 +176,58 @@ function initShell() {
     fetch('/rooms/' + id + '/close', { method: 'POST' }).catch(() => {})
   }
 
-  // ── Drag-and-drop reorder / group switch ─────────────────────────────────
+  // ── Drag-and-drop (rooms cross-group + group reorder) ──────────────────
+  let dragType: 'room' | 'group' | null = null
   let dragId: string | null = null
 
   function clearDragHighlights() {
-    openTabsEl.querySelectorAll('.drag-over-before,.drag-over-after').forEach(el => {
-      el.classList.remove('drag-over-before', 'drag-over-after')
-    })
-    openTabsEl.querySelectorAll('.tab-divider.drag-over').forEach(el => el.classList.remove('drag-over'))
+    openTabsEl.querySelectorAll('.drag-over-before,.drag-over-after').forEach(el =>
+      el.classList.remove('drag-over-before', 'drag-over-after'))
+    openTabsEl.querySelectorAll('.group-drop-target').forEach(el =>
+      el.classList.remove('group-drop-target'))
   }
 
   openTabsEl.addEventListener('dragstart', (e: DragEvent) => {
+    if (!e.dataTransfer) return
     const tab = (e.target as HTMLElement).closest('.room-tab') as HTMLElement | null
-    if (!tab) return
-    dragId = tab.dataset.roomId || null
-    e.dataTransfer!.effectAllowed = 'move'
+    const hdr = (e.target as HTMLElement).closest('.group-header') as HTMLElement | null
+    if (tab) {
+      dragType = 'room'; dragId = tab.dataset.roomId || null
+    } else if (hdr && hdr.dataset.groupId !== UNGROUPED_ID) {
+      dragType = 'group'; dragId = hdr.dataset.groupId || null
+    } else {
+      e.preventDefault(); return
+    }
+    e.dataTransfer.effectAllowed = 'move'
   })
 
-  openTabsEl.addEventListener('dragend', () => { dragId = null; clearDragHighlights() })
+  openTabsEl.addEventListener('dragend', () => { dragType = null; dragId = null; clearDragHighlights() })
 
   openTabsEl.addEventListener('dragover', (e: DragEvent) => {
-    if (!dragId) return
+    if (!dragId || !e.dataTransfer) return
     e.preventDefault()
-    e.dataTransfer!.dropEffect = 'move'
+    e.dataTransfer.dropEffect = 'move'
     clearDragHighlights()
 
-    // Find what element is under the pointer
-    const target = (e.target as HTMLElement).closest('.room-tab, .tab-divider') as HTMLElement | null
-    if (!target) return
-
-    if (target.classList.contains('tab-divider')) {
-      target.classList.add('drag-over')
-      return
+    if (dragType === 'room') {
+      const tab = (e.target as HTMLElement).closest('.room-tab') as HTMLElement | null
+      const hdr = (e.target as HTMLElement).closest('.group-header') as HTMLElement | null
+      const grp = (e.target as HTMLElement).closest('.group-rooms') as HTMLElement | null
+      if (tab && tab.dataset.roomId !== dragId) {
+        const rect = tab.getBoundingClientRect()
+        tab.classList.add(e.clientY < rect.top + rect.height / 2 ? 'drag-over-before' : 'drag-over-after')
+      } else if (hdr) {
+        hdr.classList.add('group-drop-target')
+      } else if (grp) {
+        grp.classList.add('group-drop-target')
+      }
+    } else if (dragType === 'group') {
+      const hdr = (e.target as HTMLElement).closest('.group-header') as HTMLElement | null
+      if (hdr && hdr.dataset.groupId !== dragId) {
+        const rect = hdr.getBoundingClientRect()
+        hdr.classList.add(e.clientY < rect.top + rect.height / 2 ? 'drag-over-before' : 'drag-over-after')
+      }
     }
-    if (target.dataset.roomId === dragId) return  // hovering self
-
-    const rect = target.getBoundingClientRect()
-    const half = rect.top + rect.height / 2
-    if (e.clientY < half) target.classList.add('drag-over-before')
-    else target.classList.add('drag-over-after')
   })
 
   openTabsEl.addEventListener('dragleave', (e: DragEvent) => {
@@ -220,127 +239,286 @@ function initShell() {
     if (!dragId) return
     clearDragHighlights()
 
-    const sorted = sortedOpenIds()  // current render order
-    const target = (e.target as HTMLElement).closest('.room-tab, .tab-divider') as HTMLElement | null
+    if (dragType === 'room') {
+      const roomDragId = dragId
+      const tab = (e.target as HTMLElement).closest('.room-tab') as HTMLElement | null
+      const hdr = (e.target as HTMLElement).closest('.group-header') as HTMLElement | null
+      const grp = (e.target as HTMLElement).closest('.group-rooms') as HTMLElement | null
 
-    // Determine target group and insertion index
-    let newPinned = false
-    let insertBefore: string | null = null  // null = append to group
+      let targetGroupId: string
+      let insertBefore: string | null = null
 
-    if (target?.classList.contains('tab-divider')) {
-      // Dropped on divider → place at end of pinned group
-      newPinned = true
-      insertBefore = null
-    } else if (target?.classList.contains('room-tab')) {
-      const targetId = target.dataset.roomId!
-      const targetRoom = latestRooms.find(r => r.id === targetId)
-      newPinned = !!(targetRoom?.pinned)
-      const rect = target.getBoundingClientRect()
-      if (e.clientY < rect.top + rect.height / 2) insertBefore = targetId
-      else {
-        // insert after targetId
-        const idx = sorted.indexOf(targetId)
-        insertBefore = idx + 1 < sorted.length ? sorted[idx + 1] : null
+      if (tab && tab.dataset.roomId !== roomDragId) {
+        // Drop on room tab: inherit its group, insert before/after
+        const targetId = tab.dataset.roomId!
+        const targetRoom = latestRooms.find(r => r.id === targetId)
+        targetGroupId = targetRoom?.groupId || UNGROUPED_ID
+        const rect = tab.getBoundingClientRect()
+        const groupRooms = roomsInGroup(targetGroupId)
+        if (e.clientY < rect.top + rect.height / 2) {
+          insertBefore = targetId
+        } else {
+          const idx = groupRooms.indexOf(targetId)
+          insertBefore = idx + 1 < groupRooms.length ? groupRooms[idx + 1] : null
+        }
+      } else if (hdr) {
+        targetGroupId = hdr.dataset.groupId || UNGROUPED_ID
+        insertBefore = null  // append to end of group
+      } else if (grp) {
+        targetGroupId = grp.dataset.groupId || UNGROUPED_ID
+        insertBefore = null
+      } else {
+        targetGroupId = UNGROUPED_ID
+        insertBefore = null
       }
-    } else {
-      // Dropped in empty area → append to normal group
-      newPinned = false
-      insertBefore = null
+
+      // Build new room list within targetGroupId
+      const groupRooms = roomsInGroup(targetGroupId).filter(id => id !== roomDragId)
+      let newGroupOrder: string[]
+      if (insertBefore === null) {
+        newGroupOrder = [...groupRooms, roomDragId]
+      } else {
+        const idx = groupRooms.indexOf(insertBefore)
+        newGroupOrder = [...groupRooms.slice(0, idx), roomDragId, ...groupRooms.slice(idx)]
+      }
+
+      // Assign orders within the target group; also update old group if room moved groups
+      const updates: { id: string; groupId: string; order: number }[] = []
+      newGroupOrder.forEach((id, i) => updates.push({ id, groupId: targetGroupId, order: i }))
+
+      // If room moved to a different group, also re-compact the old group's order
+      const oldGroupId = latestRooms.find(r => r.id === roomDragId)?.groupId || UNGROUPED_ID
+      if (oldGroupId !== targetGroupId) {
+        const oldGroupRooms = roomsInGroup(oldGroupId).filter(id => id !== roomDragId)
+        oldGroupRooms.forEach((id, i) => updates.push({ id, groupId: oldGroupId, order: i }))
+      }
+
+      // Optimistic update
+      for (const { id, groupId, order } of updates) {
+        const lr = latestRooms.find(r => r.id === id)
+        if (lr) { lr.groupId = groupId; lr.order = order }
+      }
+      renderGroups()
+      setActive(activeRoomId)
+      fetch('/tabs/layout', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates),
+      }).catch(() => {})
+
+    } else if (dragType === 'group') {
+      const groupDragId = dragId
+      const hdr = (e.target as HTMLElement).closest('.group-header') as HTMLElement | null
+      if (!hdr || hdr.dataset.groupId === groupDragId) { dragType = null; dragId = null; return }
+
+      const targetGroupId = hdr.dataset.groupId!
+      const sorted = [...latestGroups].sort((a, b) => a.order - b.order)
+      const withoutDrag = sorted.filter(g => g.id !== groupDragId)
+      const targetIdx = withoutDrag.findIndex(g => g.id === targetGroupId)
+      const rect = hdr.getBoundingClientRect()
+      const insertIdx = e.clientY < rect.top + rect.height / 2 ? targetIdx : targetIdx + 1
+      const reordered = [
+        ...withoutDrag.slice(0, insertIdx),
+        sorted.find(g => g.id === groupDragId)!,
+        ...withoutDrag.slice(insertIdx),
+      ].filter(Boolean)
+
+      const updates = reordered.map((g, i) => ({ id: g.id, order: i }))
+      for (const { id, order } of updates) {
+        const g = latestGroups.find(x => x.id === id)
+        if (g) g.order = order
+      }
+      renderGroups()
+      fetch('/groups/order', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates),
+      }).catch(() => {})
     }
 
-    // Build new sorted list with dragId moved to target position
-    const withoutDrag = sorted.filter(id => id !== dragId)
-    let newOrder: string[]
-    if (insertBefore === null) {
-      // append to the right group
-      const groupIds = withoutDrag.filter(id => !!(latestRooms.find(r => r.id === id)?.pinned) === newPinned)
-      const otherIds = withoutDrag.filter(id => !!(latestRooms.find(r => r.id === id)?.pinned) !== newPinned)
-      if (newPinned) newOrder = [...groupIds, dragId, ...otherIds]
-      else newOrder = [...otherIds, ...groupIds, dragId]
-    } else {
-      const insertIdx = withoutDrag.indexOf(insertBefore)
-      newOrder = [...withoutDrag.slice(0, insertIdx), dragId, ...withoutDrag.slice(insertIdx)]
-    }
-
-    // Assign new order values and pinned based on position
-    // pinned group = items before divider (those whose target group is pinned)
-    // Re-derive pinned: items placed before the first non-pinned original item inherit the group
-    // Simpler: track which side of divider each item ends up on
-    const pinnedGroup = new Set<string>()
-    if (newPinned) pinnedGroup.add(dragId)
-
-    // Items already in pinned keep their group unless they crossed dragId's new position
-    // Rebuild: walk newOrder, check where the "divider" lands
-    // The divider position = between last pinned and first non-pinned in newOrder
-    // To keep it clean: use explicit group: for items that weren't the dragged one, keep their group
-    // Only the dragged item changes group to newPinned
-    const updates = newOrder.map((id, i) => {
-      const room = latestRooms.find(r => r.id === id)
-      const isPinned = id === dragId ? newPinned : !!(room?.pinned)
-      return { id, pinned: isPinned, order: i }
-    })
-
-    // Optimistically update latestRooms to prevent poll-bounce
-    for (const { id, pinned, order } of updates) {
-      const lr = latestRooms.find(r => r.id === id)
-      if (lr) { lr.pinned = pinned; lr.order = order }
-    }
-
-    // Re-render immediately with new order
-    renderTabs()
-    setActive(activeRoomId)  // re-apply active class
-
-    // Persist batch
-    fetch('/tabs/layout', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(updates),
-    }).catch(() => {})
-
-    dragId = null
+    dragType = null; dragId = null
   })
-  // ── End drag-and-drop ────────────────────────────────────────────────────
+  // ── End drag-and-drop ─────────────────────────────────────────────────────
 
-  function renderTabs() {
-    const sorted = sortedOpenIds()
-    // Clear existing tab DOM (but not iframes — openTabs map holds the iframe refs)
+  // ── Color picker ──────────────────────────────────────────────────────────
+  let activeColorPicker: HTMLElement | null = null
+
+  function closeColorPicker() {
+    activeColorPicker?.remove()
+    activeColorPicker = null
+  }
+  document.addEventListener('click', (e) => {
+    if (activeColorPicker && !(e.target as HTMLElement).closest('.color-picker-popup,.group-color-dot')) closeColorPicker()
+  })
+
+  function showColorPicker(anchorEl: HTMLElement, groupId: string) {
+    closeColorPicker()
+    const popup = document.createElement('div')
+    popup.className = 'color-picker-popup'
+    popup.innerHTML = GROUP_COLORS.map(c =>
+      `<div class="color-swatch" style="background:${c}" data-color="${c}"></div>`
+    ).join('')
+    popup.addEventListener('click', (e) => {
+      const color = (e.target as HTMLElement).dataset.color
+      if (!color) return
+      const g = latestGroups.find(x => x.id === groupId)
+      if (g) g.color = color
+      fetch('/groups/' + groupId, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ color }),
+      }).catch(() => {})
+      closeColorPicker()
+      renderGroups()
+    })
+    anchorEl.after(popup)
+    activeColorPicker = popup
+  }
+
+  // ── Render groups ─────────────────────────────────────────────────────────
+  function renderGroups() {
+    const sorted = [...latestGroups].sort((a, b) => a.order - b.order)
     openTabsEl.innerHTML = ''
-    let inNormalGroup = false
 
-    for (const id of sorted) {
-      const entry = openTabs.get(id); if (!entry) continue
-      const r = latestRooms.find(x => x.id === id) || { name: id, id, pinned: false }
+    for (const g of sorted) {
+      const rooms = roomsInGroup(g.id)
+      const isUngrouped = g.id === UNGROUPED_ID
 
-      // Insert divider when we transition from pinned → normal
-      if (!r.pinned && !inNormalGroup) {
-        inNormalGroup = true
-        const divider = document.createElement('div')
-        divider.className = 'tab-divider'
-        divider.innerHTML = '<div class="tab-divider-label">普通</div><div class="tab-divider-line"></div>'
-        openTabsEl.appendChild(divider)
+      const wrapper = document.createElement('div')
+      wrapper.className = 'tab-group'
+      wrapper.dataset.groupId = g.id
+
+      // Group header
+      const header = document.createElement('div')
+      header.className = 'group-header'
+      header.dataset.groupId = g.id
+      if (!isUngrouped) header.draggable = true
+
+      const actionsHtml = isUngrouped ? '' :
+        `<span class="group-actions">` +
+        `<button class="group-btn group-rename" title="重命名" data-group-id="${g.id}">✏</button>` +
+        `<button class="group-btn group-delete" title="删除分组" data-group-id="${g.id}">🗑</button>` +
+        `</span>`
+
+      header.innerHTML =
+        `<span class="group-collapse-arrow">${g.collapsed ? '▸' : '▾'}</span>` +
+        `<span class="group-color-dot" style="background:${g.color}" data-group-id="${g.id}"></span>` +
+        `<span class="group-name">${escHtml(g.name)}</span>` +
+        `<span class="group-count">(${rooms.length})</span>` +
+        actionsHtml
+
+      // Collapse toggle
+      header.querySelector('.group-collapse-arrow')?.addEventListener('click', (e) => {
+        e.stopPropagation()
+        g.collapsed = !g.collapsed
+        fetch('/groups/' + g.id, {
+          method: 'PUT', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ collapsed: g.collapsed }),
+        }).catch(() => {})
+        renderGroups()
+      })
+
+      // Color dot → color picker
+      header.querySelector('.group-color-dot')?.addEventListener('click', (e) => {
+        e.stopPropagation()
+        if (!isUngrouped) showColorPicker(e.target as HTMLElement, g.id)
+      })
+
+      // Rename button
+      header.querySelector('.group-rename')?.addEventListener('click', (e) => {
+        e.stopPropagation()
+        const nameEl = header.querySelector('.group-name') as HTMLElement
+        const old = nameEl.textContent || ''
+        const input = document.createElement('input')
+        input.className = 'group-name-input'
+        input.value = old
+        nameEl.replaceWith(input)
+        input.focus(); input.select()
+        const commit = () => {
+          const newName = input.value.trim() || old
+          input.replaceWith(document.createTextNode(newName))
+          header.querySelector('span.group-name')?.remove()
+          const span = document.createElement('span')
+          span.className = 'group-name'
+          span.textContent = newName
+          header.querySelector('.group-count')!.before(span)
+          g.name = newName
+          fetch('/groups/' + g.id, {
+            method: 'PUT', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: newName }),
+          }).catch(() => {})
+        }
+        input.addEventListener('blur', commit)
+        input.addEventListener('keydown', (ke) => { if (ke.key === 'Enter') { ke.preventDefault(); input.blur() } else if (ke.key === 'Escape') { input.value = old; input.blur() } })
+      })
+
+      // Delete button
+      header.querySelector('.group-delete')?.addEventListener('click', (e) => {
+        e.stopPropagation()
+        const roomCount = rooms.length
+        const msg = roomCount > 0
+          ? `删除分组「${g.name}」？其中 ${roomCount} 个 tab 将移入「未分组」。`
+          : `删除分组「${g.name}」？`
+        if (!confirm(msg)) return
+        fetch('/groups/' + g.id, { method: 'DELETE' }).then(async () => {
+          // Move rooms in latestRooms to ungrouped
+          for (const lr of latestRooms) {
+            if (lr.groupId === g.id) lr.groupId = UNGROUPED_ID
+          }
+          const idx = latestGroups.findIndex(x => x.id === g.id)
+          if (idx !== -1) latestGroups.splice(idx, 1)
+          renderGroups()
+        }).catch(() => {})
+      })
+
+      // Room tabs container
+      const roomsContainer = document.createElement('div')
+      roomsContainer.className = 'group-rooms' + (g.collapsed ? ' collapsed' : '')
+      roomsContainer.dataset.groupId = g.id
+
+      for (const id of rooms) {
+        const entry = openTabs.get(id); if (!entry) continue
+        const r = latestRooms.find(x => x.id === id) || { name: id, id }
+        entry.tab.innerHTML =
+          `<div class="room-tab-dots">${statusDots(r)}</div>` +
+          `<div class="room-tab-name">${escHtml(r.name)}</div>` +
+          `<div class="room-tab-close" title="关闭标签">✕</div>`
+        entry.tab.draggable = true
+        entry.tab.dataset.roomId = id
+        entry.tab.classList.toggle('active', id === activeRoomId)
+        // Remove old close listener by replacing node — use a simple flag approach instead
+        const closeBtn = entry.tab.querySelector('.room-tab-close')!
+        const newClose = closeBtn.cloneNode(true) as HTMLElement
+        closeBtn.replaceWith(newClose)
+        newClose.addEventListener('click', (e) => { e.stopPropagation(); closeRoomTab(id) })
+        roomsContainer.appendChild(entry.tab)
       }
 
-      entry.tab.innerHTML =
-        `<div class="room-tab-dots">${statusDots(r)}</div>` +
-        `<div class="room-tab-name">${escHtml(r.name)}</div>` +
-        `<div class="room-tab-close" title="关闭标签">✕</div>`
-      entry.tab.draggable = true
-      entry.tab.dataset.roomId = id
-      entry.tab.classList.toggle('active', id === activeRoomId)
-      entry.tab.querySelector('.room-tab-close')!.addEventListener('click', (e) => {
-        e.stopPropagation(); closeRoomTab(id)
-      })
-      openTabsEl.appendChild(entry.tab)
+      wrapper.appendChild(header)
+      wrapper.appendChild(roomsContainer)
+      openTabsEl.appendChild(wrapper)
     }
 
-    // If no normal items were added, still show the divider (drop target for empty normal group)
-    // If no pinned items AND no normal items rendered yet, show divider after pinned section
-    // Always show the divider between the two groups
-    if (!inNormalGroup) {
-      const divider = document.createElement('div')
-      divider.className = 'tab-divider'
-      divider.innerHTML = '<div class="tab-divider-label">普通</div><div class="tab-divider-line"></div>'
-      openTabsEl.appendChild(divider)
-    }
+    // "新建分组" button
+    const addBtn = document.createElement('button')
+    addBtn.className = 'add-group-btn'
+    addBtn.textContent = '+ 新建分组'
+    addBtn.addEventListener('click', async () => {
+      try {
+        const res = await fetch('/groups', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: '新分组', color: '#8b949e' }),
+        }).then(r => r.json())
+        if (res.group) {
+          latestGroups.push(res.group)
+          renderGroups()
+          // Trigger rename on the new group header
+          setTimeout(() => {
+            const hdr = openTabsEl.querySelector(`.group-header[data-group-id="${res.group.id}"]`)
+            const renameBtn = hdr?.querySelector('.group-rename') as HTMLElement | null
+            renameBtn?.click()
+          }, 50)
+        }
+      } catch {}
+    })
+    openTabsEl.appendChild(addBtn)
   }
 
   let pollTimer: ReturnType<typeof setInterval> | null = null
@@ -348,13 +526,21 @@ function initShell() {
 
   async function loadRooms() {
     try {
-      latestRooms = await fetch('/rooms').then(r => r.json())
+      const [rooms, grps] = await Promise.all([
+        fetch('/rooms').then(r => r.json()),
+        fetch('/groups').then(r => r.json()),
+      ])
+      latestRooms = rooms
+      if (Array.isArray(grps) && grps.length) latestGroups = grps
       // First successful load: re-open tabs for rooms with opened=true server-side.
       if (!restored) {
         restored = true
         const opened = latestRooms.filter(r => r.opened)
           .sort((a, b) => {
-            if (!!a.pinned !== !!b.pinned) return b.pinned ? 1 : -1
+            // Sort by group order first, then room order within group
+            const ga = latestGroups.find(g => g.id === (a.groupId || UNGROUPED_ID))?.order ?? 9999
+            const gb = latestGroups.find(g => g.id === (b.groupId || UNGROUPED_ID))?.order ?? 9999
+            if (ga !== gb) return ga - gb
             return (a.order ?? 0) - (b.order ?? 0)
           })
         for (const r of opened) openRoomTab(r.id, { activate: false, persist: false })
@@ -364,7 +550,7 @@ function initShell() {
         else setActive(null)
       }
       renderRooms(latestRooms)
-      renderTabs()
+      renderGroups()
     } catch {}
   }
 

@@ -2,8 +2,8 @@ import { readFileSync, writeFileSync, statSync, readdirSync } from 'fs'
 import { join } from 'path'
 import { randomUUID } from 'crypto'
 import type { IncomingMessage, ServerResponse } from 'http'
-import { rooms, ptys, inboxes, broadcast, getRoomState } from './state.js'
-import { saveRooms } from './persistence.js'
+import { rooms, ptys, inboxes, broadcast, getRoomState, groups } from './state.js'
+import { saveRooms, saveGroups } from './persistence.js'
 import { CLI_PROFILES } from './cli-profiles.js'
 import { getAdapterStatus, startComm, stopComm, commSend } from './comm.js'
 import { listSessions, listKimiSessions, listCodexSessions, loadSessionHistory, captureNewSession, captureNewKimiSession, captureNewCodexSession } from './sessions.js'
@@ -13,6 +13,7 @@ import { startWatchdog, stopWatchdog } from './watchdog.js'
 import { inboxSend, markNotifyDelivered } from './inbox.js'
 import { ROOT_DIR, ROOM_MEMORIES_DIR, PORT, PREFS_FILE } from './config.js'
 import type { Room } from './types.js'
+import { UNGROUPED_ID } from './types.js'
 
 export function createRequestHandler(port: number) {
   const cors = {
@@ -224,10 +225,11 @@ export function createRequestHandler(port: number) {
         if (archCli !== undefined && validClis.includes(archCli as string)) rooms[id].archCli = archCli as string
         if (devCli  !== undefined && validClis.includes(devCli  as string)) rooms[id].devCli  = devCli  as string
         if (qaCli   !== undefined && validClis.includes(qaCli   as string)) rooms[id].qaCli   = qaCli   as string
-        const p = parsed as { pinned?: unknown; opened?: unknown; order?: unknown }
+        const p = parsed as { pinned?: unknown; opened?: unknown; order?: unknown; groupId?: unknown }
         if (p.pinned  !== undefined) rooms[id].pinned  = !!(p.pinned)
         if (p.opened  !== undefined) rooms[id].opened  = !!(p.opened)
         if (p.order   !== undefined) rooms[id].order   = Number(p.order)
+        if (p.groupId !== undefined) rooms[id].groupId = String(p.groupId)
         rooms[id].updatedAt = Date.now()
         saveRooms()
         json({ ok: true, room: rooms[id] }); return
@@ -250,14 +252,76 @@ export function createRequestHandler(port: number) {
       }
 
       // Batch update tab layout (drag-reorder / group change).
-      // Body: [{id, pinned, order}]  — one saveRooms at the end to avoid race.
+      // Body: [{id, groupId?, order}]  — one saveRooms at the end to avoid race.
       if (req.method === 'POST' && url.pathname === '/tabs/layout') {
-        const updates = parsed as { id: string; pinned: boolean; order: number }[]
+        const updates = parsed as { id: string; groupId?: string; order: number }[]
         if (!Array.isArray(updates)) { json({ error: 'expected array' }, 400); return }
-        for (const { id, pinned, order } of updates) {
-          if (rooms[id]) { rooms[id].pinned = !!(pinned); rooms[id].order = Number(order) }
+        for (const { id, groupId, order } of updates) {
+          if (rooms[id]) {
+            if (groupId !== undefined) rooms[id].groupId = groupId
+            rooms[id].order = Number(order)
+          }
         }
         saveRooms()
+        json({ ok: true }); return
+      }
+
+      // ── Group CRUD ─────────────────────────────────────────────────────────
+      if (req.method === 'GET' && url.pathname === '/groups') {
+        json([...groups].sort((a, b) => a.order - b.order)); return
+      }
+
+      if (req.method === 'POST' && url.pathname === '/groups') {
+        const { name = '新分组', color = '#8b949e' } = parsed as { name?: string; color?: string }
+        const maxOrder = groups.reduce((m, g) => g.id !== UNGROUPED_ID ? Math.max(m, g.order) : m, -1)
+        const g = { id: randomUUID().slice(0, 8), name: String(name), color: String(color), order: maxOrder + 1, collapsed: false }
+        groups.push(g)
+        saveGroups()
+        json({ ok: true, group: g }); return
+      }
+
+      const groupIdMatch = url.pathname.match(/^\/groups\/([^/]+)$/)
+      if (groupIdMatch) {
+        const gid = groupIdMatch[1]
+
+        if (req.method === 'PUT') {
+          const g = groups.find(x => x.id === gid)
+          if (!g) { json({ error: 'Group not found' }, 404); return }
+          const { name, color, order, collapsed } = parsed as { name?: string; color?: string; order?: number; collapsed?: boolean }
+          // Protect ungrouped bucket: cannot rename or reorder it
+          if (gid !== UNGROUPED_ID) {
+            if (name !== undefined) g.name = String(name)
+            if (color !== undefined) g.color = String(color)
+            if (order !== undefined) g.order = Number(order)
+          }
+          if (collapsed !== undefined) g.collapsed = !!(collapsed)
+          saveGroups()
+          json({ ok: true, group: g }); return
+        }
+
+        if (req.method === 'DELETE') {
+          if (gid === UNGROUPED_ID) { json({ error: 'Cannot delete the ungrouped bucket' }, 400); return }
+          const idx = groups.findIndex(x => x.id === gid)
+          if (idx === -1) { json({ error: 'Group not found' }, 404); return }
+          // Move rooms from deleted group into ungrouped
+          for (const r of Object.values(rooms)) {
+            if (r.groupId === gid) r.groupId = UNGROUPED_ID
+          }
+          groups.splice(idx, 1)
+          saveGroups()
+          saveRooms()
+          json({ ok: true }); return
+        }
+      }
+
+      if (req.method === 'POST' && url.pathname === '/groups/order') {
+        const updates = parsed as { id: string; order: number }[]
+        if (!Array.isArray(updates)) { json({ error: 'expected array' }, 400); return }
+        for (const { id, order } of updates) {
+          const g = groups.find(x => x.id === id)
+          if (g) g.order = Number(order)
+        }
+        saveGroups()
         json({ ok: true }); return
       }
 

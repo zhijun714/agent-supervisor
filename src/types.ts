@@ -1,6 +1,16 @@
 import type { IPty } from 'node-pty'
 import type { WebSocket } from 'ws'
 
+export interface Group {
+  id: string
+  name: string
+  color: string
+  order: number
+  collapsed: boolean
+}
+
+export const UNGROUPED_ID = '__ungrouped__'
+
 export interface Room {
   id: string
   name: string
@@ -19,8 +29,9 @@ export interface Room {
   archSessionId?: string
   devSessionId?: string
   qaSessionId?: string
-  opened?: boolean   // tab is open in the sidebar (replaces old pinned semantics)
-  pinned?: boolean   // tab is in the "关注" upper group (new semantics, old "opened" semantics migrated away)
+  opened?: boolean   // tab is open in the sidebar
+  pinned?: boolean   // legacy (kept for migration detection only)
+  groupId?: string   // which group this room belongs to (default: UNGROUPED_ID)
   order?: number     // sort key within group (lower = higher in list)
   commEnabled?: boolean
   commAdapter?: string | null
