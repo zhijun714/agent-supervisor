@@ -490,13 +490,16 @@ function initRoomDetail(roomId: string) {
     catch { console.warn('[supervisor] charSizeService.measure() unavailable — xterm version changed?') }
     try { obj.fitAddon.fit() } catch {}
     try { obj.term.refresh(0, obj.term.rows - 1) } catch {}
-    // Layer 3: validate cell dimensions after fit; retry once if they look wrong
-    // (width===0 means font not loaded yet; overly large means stale hidden-state measurement)
+    // Layer 3: validate cell dimensions after fit; retry once if they look implausible.
+    // Catches w=0 (font not loaded) and extreme outliers (font substitution edge cases).
     if (_retry) {
       const svc = (obj.term as any)._core?._charSizeService
       const w = svc?.width ?? 8
       const h = svc?.height ?? 16
-      if (w <= 0 || h <= 0) {
+      const fontSize = ((obj.term.options as any).fontSize as number) || 13
+      const wOk = w > 0 && w < fontSize * 0.85
+      const hOk = h > 0
+      if (!wOk || !hOk) {
         setTimeout(() => robustFit(obj, false), 120)
       }
     }
@@ -571,7 +574,9 @@ function initRoomDetail(roomId: string) {
     // xterm caches scrollBarWidth at open() time before CSS overflow:hidden applies.
     // Reset it to 0 so FitAddon uses the correct (scrollbar-free) available width.
     try { (term as any)._core.viewport.scrollBarWidth = 0 } catch(_) {}
-    requestAnimationFrame(() => { try { fitAddon.fit() } catch(e){} })
+    // Wait for webfonts before first fit — prevents fallback-font charWidth from
+    // producing wrong cols that get sent to PTY before the correct font loads.
+    document.fonts.ready.then(() => requestAnimationFrame(() => robustFit(obj)))
     // Debounce ResizeObserver to prevent rapid-fire concurrent fits during window resize,
     // which can corrupt xterm's internal charSize and renderService state.
     let _fitTimer: ReturnType<typeof setTimeout> | null = null
@@ -997,7 +1002,7 @@ function initRoomDetail(roomId: string) {
     ws.binaryType = 'arraybuffer'
     obj.ws = ws
     ws.onopen = () => {
-      try { obj.fitAddon.fit() } catch {}   // basic fit on connect; robustFit on room_activated corrects any hidden-state skew
+      robustFit(obj)   // ensure correct charWidth (fonts.ready) before sending initial PTY cols
       ws.send(JSON.stringify({ type: 'resize', cols: obj.term.cols, rows: obj.term.rows }))
       if (statusEl) statusEl.textContent = '● connected'
       let firstMsg = true
