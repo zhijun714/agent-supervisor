@@ -92,12 +92,17 @@ function initShell() {
     setTitle(id ? ('Supervisor — ' + (latestRooms.find(r => r.id === id)?.name || 'Room')) : 'Supervisor')
     try { id ? localStorage.setItem(ACTIVE_KEY, id) : localStorage.removeItem(ACTIVE_KEY) } catch {}
     // Notify the room iframe that it just became visible so it can robustRefit terminals.
+    // Layer 2: send at 2×rAF (≈33ms) AND again at 600ms to survive the cold-load race
+    // where iframe JS hasn't registered its message listener yet when the first send fires.
     if (id) {
       const entry = openTabs.get(id)
       if (entry) {
         requestAnimationFrame(() => requestAnimationFrame(() => {
           entry.iframe.contentWindow?.postMessage({ type: 'room_activated' }, '*')
         }))
+        setTimeout(() => {
+          entry.iframe.contentWindow?.postMessage({ type: 'room_activated' }, '*')
+        }, 600)
       }
     }
   }
@@ -480,11 +485,21 @@ function initRoomDetail(roomId: string) {
   // Reliable refit: force xterm to re-measure character cell dimensions (cached from
   // hidden-state open), then fit and refresh. The charSizeService call is a private API
   // so we isolate its failure separately — fit+refresh must always run.
-  function robustFit(obj: { term: Terminal; fitAddon: FitAddon }) {
+  function robustFit(obj: { term: Terminal; fitAddon: FitAddon }, _retry = true) {
     try { (obj.term as any)._core._charSizeService.measure() }
     catch { console.warn('[supervisor] charSizeService.measure() unavailable — xterm version changed?') }
     try { obj.fitAddon.fit() } catch {}
     try { obj.term.refresh(0, obj.term.rows - 1) } catch {}
+    // Layer 3: validate cell dimensions after fit; retry once if they look wrong
+    // (width===0 means font not loaded yet; overly large means stale hidden-state measurement)
+    if (_retry) {
+      const svc = (obj.term as any)._core?._charSizeService
+      const w = svc?.width ?? 8
+      const h = svc?.height ?? 16
+      if (w <= 0 || h <= 0) {
+        setTimeout(() => robustFit(obj, false), 120)
+      }
+    }
   }
 
   function robustRefitAll() {
@@ -700,6 +715,16 @@ function initRoomDetail(roomId: string) {
     if (e.data?.type !== 'room_activated') return
     // One rAF ensures the browser has painted the newly visible iframe before we measure
     requestAnimationFrame(() => robustRefitAll())
+  })
+
+  // Layer 1: iframe self-heal for cold-load race.
+  // If the parent sent room_activated before our message listener was registered (the JS
+  // was still loading), we never got the signal. Cover this by running robustRefitAll
+  // once fonts are stable AND the iframe is visible (innerWidth > 0 means display:block).
+  document.fonts.ready.then(() => {
+    if (window.innerWidth > 0 && window.innerHeight > 0) {
+      requestAnimationFrame(() => robustRefitAll())
+    }
   })
 
   const archStatus = document.getElementById('archStatus')!
