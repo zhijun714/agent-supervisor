@@ -11,9 +11,16 @@ function isStandalone(): boolean {
     !!(navigator as Navigator & { standalone?: boolean }).standalone
 }
 
+// U+200B zero-width space: invisible, not stripped by document.title getter (unlike ASCII space),
+// prevents Chrome from falling back to the manifest name when title would otherwise be empty.
+const INVIS = '​'
+
 function setTitle(title: string): void {
-  document.title = isStandalone() ? '' : title
+  document.title = isStandalone() ? INVIS : title
 }
+
+// Set early to suppress first-frame manifest-name flash in standalone windows
+if (isStandalone()) document.title = INVIS
 
 // ── Route: room list vs room detail ──────────────────────────────────────────
 const roomId = new URLSearchParams(location.search).get('room')
