@@ -212,6 +212,22 @@
   .panel-header .ph-clear:hover { border-color: var(--text-dim); color: var(--fg); }
   .panel-header .ph-model { cursor: pointer; }
   .panel-header .ph-model:hover { opacity: 0.75; }
+  /* ── Panel collapse ─────────────────────────────────────────────────────── */
+  .ph-collapse { margin-left: 2px; background: transparent; border: 1px solid var(--border); border-radius: 4px; padding: 2px 6px; color: var(--text-dim); font-size: 11px; cursor: pointer; }
+  .ph-collapse:hover { border-color: var(--text-dim); color: var(--fg); }
+  .ph-collapse.disabled { opacity: 0.35; cursor: not-allowed; pointer-events: none; }
+  .panel.collapsed { flex: 0 0 40px !important; min-width: 40px !important; overflow: hidden; cursor: pointer; }
+  .panel.collapsed .term-wrap { display: none; }
+  .panel.collapsed .panel-header { flex-direction: column; align-items: center; justify-content: flex-start; padding: 10px 0 6px; gap: 6px; height: 100%; overflow: hidden; cursor: pointer; border-bottom: none; }
+  .panel.collapsed .panel-header .ph-label { writing-mode: vertical-rl; text-orientation: mixed; font-size: 11px; white-space: nowrap; overflow: hidden; max-height: 160px; user-select: none; }
+  .panel.collapsed .panel-header .ph-model,
+  .panel.collapsed .panel-header .ph-status,
+  .panel.collapsed .panel-header .ph-inbox-badge,
+  .panel.collapsed .panel-header .ph-reconnect,
+  .panel.collapsed .panel-header .ph-clear,
+  .panel.collapsed .panel-header .ph-restart,
+  .panel.collapsed .panel-header .ph-collapse { display: none !important; }
+  @media (max-width: 768px) { .ph-collapse { display: none !important; } }
   .model-pop { position: fixed; z-index: 9999; background: var(--bg2); border: 1px solid var(--border); border-radius: 6px; padding: 10px 12px; box-shadow: 0 4px 16px rgba(0,0,0,.5); min-width: 180px; font-size: 12px; }
   .model-pop select { width: 100%; background: var(--bg3); color: var(--text); border: 1px solid var(--border); border-radius: 4px; padding: 3px 6px; font-size: 11px; margin-bottom: 8px; }
   .model-pop button { width: 100%; background: var(--bg3); color: var(--text); border: 1px solid var(--border); border-radius: 4px; padding: 4px; font-size: 11px; cursor: pointer; }
@@ -241,11 +257,11 @@
   .term-wrap { flex: 1; min-height: 0; overflow: hidden; background: var(--term-bg, #0a0e14); cursor: text; outline: 2px solid transparent; transition: outline-color 0.15s; padding-right: 6px; }
   .term-wrap.focused { outline-color: #58a6ff; }
   .term-wrap .xterm { height: 100%; padding: 3px 4px; background: var(--term-bg, #0a0e14); }
-  .term-wrap .xterm-viewport { overflow-y: auto !important; background: var(--term-bg, #0a0e14) !important; scrollbar-width: none; }
+  .term-wrap .xterm-viewport { overflow: hidden !important; background: var(--term-bg, #0a0e14) !important; scrollbar-width: none; }
   .term-wrap .xterm-viewport::-webkit-scrollbar { display: none; }
   .term-wrap .xterm-scroll-area { background: var(--term-bg, #0a0e14) !important; }
   .term-wrap .xterm-screen { cursor: text; background: var(--term-bg, #0a0e14); }
-  .term-wrap .xterm-screen canvas { display: block; background: var(--term-bg, #0a0e14); }
+  .term-wrap .xterm-screen canvas { display: block; }
   .term-wrap .xterm-rows { background: var(--term-bg, #0a0e14); }
   .xterm .xterm-helper-textarea { position: fixed !important; left: -4px !important; top: 0 !important; width: 1px !important; height: 1px !important; opacity: 0.001 !important; z-index: -1 !important; }
 
@@ -553,36 +569,39 @@
   <div id="main">
     <div class="panel" id="archPanel">
       <div class="panel-header">
-        🏛 产品架构师
+        <span class="ph-label">🏛 产品架构师</span>
         <span class="ph-model" id="archModelBadge"></span>
         <span class="ph-inbox-badge" id="archInboxBadge" title="查看积压消息详情"></span>
         <span class="ph-status" id="archStatus"></span>
         <button class="ph-reconnect" id="archReconnect" title="Reconnect">⟳</button>
         <button class="ph-clear" id="archClear" title="清空屏幕输出">⌫</button>
+        <button class="ph-collapse" id="archCollapse" title="折叠面板">⊟</button>
         <button class="ph-restart" id="archRestart" title="重启（续上次会话）">↺ 重启</button>
       </div>
       <div class="term-wrap" id="archTermEl"></div>
     </div>
     <div class="panel" id="devPanel">
       <div class="panel-header">
-        🧑‍💻 开发工程师
+        <span class="ph-label">🧑‍💻 开发工程师</span>
         <span class="ph-model" id="devModelBadge"></span>
         <span class="ph-inbox-badge" id="devInboxBadge" title="查看积压消息详情"></span>
         <span class="ph-status" id="devStatus"></span>
         <button class="ph-reconnect" id="devReconnect" title="Reconnect">⟳</button>
         <button class="ph-clear" id="devClear" title="清空屏幕输出">⌫</button>
+        <button class="ph-collapse" id="devCollapse" title="折叠面板">⊟</button>
         <button class="ph-restart" id="devRestart" title="重启（续上次会话）">↺ 重启</button>
       </div>
       <div class="term-wrap" id="devTermEl"></div>
     </div>
     <div class="panel" id="qaPanel" style="display:none">
       <div class="panel-header">
-        🔍 QA 工程师
+        <span class="ph-label">🔍 QA 工程师</span>
         <span class="ph-model" id="qaModelBadge"></span>
         <span class="ph-inbox-badge" id="qaInboxBadge" title="查看积压消息详情"></span>
         <span class="ph-status" id="qaStatus"></span>
         <button class="ph-reconnect" id="qaReconnect" title="Reconnect">⟳</button>
         <button class="ph-clear" id="qaClear" title="清空屏幕输出">⌫</button>
+        <button class="ph-collapse" id="qaCollapse" title="折叠面板">⊟</button>
         <button class="ph-restart" id="qaRestart" title="重启（续上次会话）">↺ 重启</button>
       </div>
       <div class="term-wrap" id="qaTermEl"></div>

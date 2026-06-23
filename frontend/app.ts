@@ -80,6 +80,16 @@ function initShell() {
     openTabs.forEach(({ tab }, rid) => tab.classList.toggle('active', rid === id))
     setTitle(id ? ('Supervisor — ' + (latestRooms.find(r => r.id === id)?.name || 'Room')) : 'Supervisor')
     try { id ? localStorage.setItem(ACTIVE_KEY, id) : localStorage.removeItem(ACTIVE_KEY) } catch {}
+    // Notify the room iframe that it just became visible so it can robustRefit terminals.
+    // 2×rAF: first lets display:block take effect, second lets the browser finish layout paint.
+    if (id) {
+      const entry = openTabs.get(id)
+      if (entry) {
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+          entry.iframe.contentWindow?.postMessage({ type: 'room_activated' }, '*')
+        }))
+      }
+    }
   }
 
   // opts.activate: switch to the tab (default true). opts.persist: mark pinned
@@ -278,6 +288,77 @@ function initRoomDetail(roomId: string) {
   // all-on; loadRoom() corrects this from the actual room config.
   const roleEnabled: Record<string, boolean> = { arch: true, dev: true, qa: false }
 
+  // Visual collapse state — independent of roleEnabled.
+  // Only enabled panels can be collapsed; collapsing never touches the PTY/WS.
+  const collapseState = new Set<string>()
+
+  // Reliable refit: force xterm to re-measure character cell dimensions (cached from
+  // hidden-state open), then fit and refresh. The charSizeService call is a private API
+  // so we isolate its failure separately — fit+refresh must always run.
+  function robustFit(obj: { term: Terminal; fitAddon: FitAddon }) {
+    try { (obj.term as any)._core._charSizeService.measure() }
+    catch { console.warn('[supervisor] charSizeService.measure() unavailable — xterm version changed?') }
+    try { obj.fitAddon.fit() } catch {}
+    try { obj.term.refresh(0, obj.term.rows - 1) } catch {}
+  }
+
+  function robustRefitAll() {
+    requestAnimationFrame(() => {
+      if (roleEnabled.arch && !collapseState.has('arch')) robustFit(archObj)
+      if (roleEnabled.dev  && !collapseState.has('dev'))  robustFit(devObj)
+      if (qaObj && roleEnabled.qa && !collapseState.has('qa')) robustFit(qaObj)
+    })
+  }
+
+  function saveCollapse() {
+    localStorage.setItem('sup-collapsed-' + roomId, JSON.stringify([...collapseState]))
+  }
+
+  function loadCollapse() {
+    collapseState.clear()
+    try {
+      const saved = JSON.parse(localStorage.getItem('sup-collapsed-' + roomId) || '[]') as string[]
+      saved.forEach(r => { if (roleEnabled[r]) collapseState.add(r) })
+    } catch {}
+  }
+
+  function applyCollapse() {
+    const roles = ['arch', 'dev', 'qa']
+    const expandedEnabled = roles.filter(r => roleEnabled[r] && !collapseState.has(r))
+    const onlyOne = expandedEnabled.length <= 1
+
+    for (const role of roles) {
+      const panel = document.getElementById(role + 'Panel')
+      if (!panel) continue
+      const collapseBtn = document.getElementById(role + 'Collapse') as HTMLButtonElement | null
+      if (roleEnabled[role] && collapseState.has(role)) {
+        panel.classList.add('collapsed')
+      } else {
+        panel.classList.remove('collapsed')
+      }
+      if (collapseBtn) {
+        const isLastExpanded = onlyOne && roleEnabled[role] && !collapseState.has(role)
+        collapseBtn.disabled = isLastExpanded
+        collapseBtn.classList.toggle('disabled', isLastExpanded)
+      }
+    }
+
+    // Refit all visible expanded panels with robust re-measurement
+    robustRefitAll()
+  }
+
+  function toggleCollapse(role: string) {
+    if (collapseState.has(role)) {
+      collapseState.delete(role)
+    } else {
+      const expandedEnabled = ['arch', 'dev', 'qa'].filter(r => roleEnabled[r] && !collapseState.has(r))
+      if (expandedEnabled.length <= 1) return
+      collapseState.add(role)
+    }
+    saveCollapse()
+    applyCollapse()
+  }
+
   function createTerminal(containerId: string) {
     const container = document.getElementById(containerId)!
     const term = new Terminal({
@@ -287,10 +368,19 @@ function initRoomDetail(roomId: string) {
     const fitAddon = new FitAddon()
     term.loadAddon(fitAddon)
     term.open(container)
+    // xterm caches scrollBarWidth at open() time before CSS overflow:hidden applies.
+    // Reset it to 0 so FitAddon uses the correct (scrollbar-free) available width.
+    try { (term as any)._core.viewport.scrollBarWidth = 0 } catch(_) {}
     requestAnimationFrame(() => { try { fitAddon.fit() } catch(e){} })
-    const ro = new ResizeObserver(() => { try { fitAddon.fit() } catch(e){} })
-    ro.observe(container)
+    // Debounce ResizeObserver to prevent rapid-fire concurrent fits during window resize,
+    // which can corrupt xterm's internal charSize and renderService state.
+    let _fitTimer: ReturnType<typeof setTimeout> | null = null
     const obj = { term, fitAddon, ws: null as WebSocket | null }
+    const ro = new ResizeObserver(() => {
+      if (_fitTimer !== null) clearTimeout(_fitTimer)
+      _fitTimer = setTimeout(() => { robustFit(obj); _fitTimer = null }, 50)
+    })
+    ro.observe(container)
     container.addEventListener('mousedown', () => { term.focus(); container.classList.add('focused') })
     container.addEventListener('click', () => term.focus())
     requestAnimationFrame(() => {
@@ -353,11 +443,9 @@ function initRoomDetail(roomId: string) {
 
   function fitRole(role: string) {
     requestAnimationFrame(() => {
-      try {
-        if (role === 'arch') archObj.fitAddon.fit()
-        else if (role === 'dev') devObj.fitAddon.fit()
-        else if (role === 'qa' && qaObj) qaObj.fitAddon.fit()
-      } catch(e) {}
+      if (role === 'arch') robustFit(archObj)
+      else if (role === 'dev') robustFit(devObj)
+      else if (role === 'qa' && qaObj) robustFit(qaObj)
     })
   }
 
@@ -376,6 +464,10 @@ function initRoomDetail(roomId: string) {
     if (!tabsEl) return
     if (mobile) {
       tabsEl.style.display = 'flex'
+      // Clear collapsed visual on mobile — fold state is preserved in collapseState and restored on desktop
+      for (const r of ['arch', 'dev', 'qa']) {
+        document.getElementById(r + 'Panel')?.classList.remove('collapsed')
+      }
       const active = tabsEl.querySelector('.mobile-tab.active') as HTMLElement | null
       showMobilePanel(active?.dataset.panel || 'arch')
     } else {
@@ -384,10 +476,8 @@ function initRoomDetail(roomId: string) {
       document.getElementById('archPanel')!.style.display = roleEnabled.arch ? 'flex' : 'none'
       document.getElementById('devPanel')!.style.display  = roleEnabled.dev  ? 'flex' : 'none'
       document.getElementById('qaPanel')!.style.display   = roleEnabled.qa   ? 'flex' : 'none'
-      requestAnimationFrame(() => {
-        try { if (roleEnabled.arch) archObj.fitAddon.fit(); if (roleEnabled.dev) devObj.fitAddon.fit() } catch(e) {}
-        if (qaObj && roleEnabled.qa) try { qaObj.fitAddon.fit() } catch(e) {}
-      })
+      // Re-apply collapse visual on desktop, then refit visible panels
+      applyCollapse()
     }
   }
 
@@ -417,6 +507,15 @@ function initRoomDetail(roomId: string) {
 
   mobileQuery.addEventListener('change', applyMobileLayout)
   applyMobileLayout()
+
+  // When the shell makes this iframe visible (tab switch), it sends room_activated.
+  // We robustRefit here because term.open() may have run while the iframe was hidden,
+  // leaving xterm's charSizeService with stale (0) measurements.
+  window.addEventListener('message', (e: MessageEvent) => {
+    if (e.data?.type !== 'room_activated') return
+    // One rAF ensures the browser has painted the newly visible iframe before we measure
+    requestAnimationFrame(() => robustRefitAll())
+  })
 
   const archStatus = document.getElementById('archStatus')!
   const devStatus  = document.getElementById('devStatus')!
@@ -529,6 +628,20 @@ function initRoomDetail(roomId: string) {
   document.getElementById('archClear')!.addEventListener('click', () => archObj.term.clear())
   document.getElementById('devClear')!.addEventListener('click',  () => devObj.term.clear())
   document.getElementById('qaClear')!.addEventListener('click',   () => { ensureQaTerminal(); qaObj?.term.clear() })
+
+  // Collapse buttons — stop propagation so panel click handler doesn't also fire
+  document.getElementById('archCollapse')!.addEventListener('click', (e) => { e.stopPropagation(); toggleCollapse('arch') })
+  document.getElementById('devCollapse')!.addEventListener('click',  (e) => { e.stopPropagation(); toggleCollapse('dev') })
+  document.getElementById('qaCollapse')!.addEventListener('click',   (e) => { e.stopPropagation(); toggleCollapse('qa') })
+
+  // Clicking a collapsed panel (thin strip) expands it.
+  // Only act in collapsed state — expanded panels pass clicks through to terminal focus as usual.
+  for (const role of ['arch', 'dev', 'qa']) {
+    document.getElementById(role + 'Panel')!.addEventListener('click', () => {
+      const panel = document.getElementById(role + 'Panel')!
+      if (panel.classList.contains('collapsed')) toggleCollapse(role)
+    })
+  }
 
   function showQuotaAdjust(role: string, anchorEl: HTMLElement) {
     document.getElementById('quotaAdjustPop')?.remove()
@@ -674,7 +787,7 @@ function initRoomDetail(roomId: string) {
     ws.binaryType = 'arraybuffer'
     obj.ws = ws
     ws.onopen = () => {
-      try { obj.fitAddon.fit() } catch(e) {}
+      try { obj.fitAddon.fit() } catch {}   // basic fit on connect; robustFit on room_activated corrects any hidden-state skew
       ws.send(JSON.stringify({ type: 'resize', cols: obj.term.cols, rows: obj.term.rows }))
       if (statusEl) statusEl.textContent = '● connected'
       let firstMsg = true
@@ -1168,10 +1281,9 @@ function initRoomDetail(roomId: string) {
 
     sessionPicker.style.display = 'none'
     applyMobileLayout()
-    if (archDir) { archObj.term.focus(); try { archObj.fitAddon.fit() } catch(e) {} }
-    else if (devDir) { devObj.term.focus() }
-    if (devDir) { try { devObj.fitAddon.fit()  } catch(e) {} }
-    if (qaDir) { try { qaObj!.fitAddon.fit() } catch(e) {} }
+    if (archDir) archObj.term.focus()
+    else if (devDir) devObj.term.focus()
+    robustRefitAll()
 
     const dirChanged = currentRoom && (
       archDir !== (currentRoom.archDir || '') || devDir !== (currentRoom.devDir || '') ||
@@ -1532,6 +1644,9 @@ function initRoomDetail(roomId: string) {
 
   async function init() {
     const room = await loadRoom()
+    // Load and apply per-room collapse state now that roleEnabled is set by loadRoom()
+    loadCollapse()
+    applyCollapse()
     restoreInboxBadges()
     connectEventWs()
 
@@ -1554,8 +1669,7 @@ function initRoomDetail(roomId: string) {
     const qaLive   = room?.qaDir   && room?.qaAlive
     if (archLive || devLive || qaLive) {
       setTimeout(() => {
-        try { if (archLive) archObj.fitAddon.fit(); if (devLive) devObj.fitAddon.fit() } catch(e) {}
-        if (qaLive) try { qaObj!.fitAddon.fit() } catch(e) {}
+        robustRefitAll()
         ;(archLive ? archObj : devLive ? devObj : qaObj!)?.term.focus()
       }, 300)
     } else {
