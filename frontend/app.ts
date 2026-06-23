@@ -11,16 +11,17 @@ function isStandalone(): boolean {
     !!(navigator as Navigator & { standalone?: boolean }).standalone
 }
 
-// U+200B zero-width space: invisible, not stripped by document.title getter (unlike ASCII space),
-// prevents Chrome from falling back to the manifest name when title would otherwise be empty.
-const INVIS = '​'
-
 function setTitle(title: string): void {
-  document.title = isStandalone() ? INVIS : title
+  if (!isStandalone()) {
+    document.title = title
+    return
+  }
+  // In installed PWA the OS prepends "manifest.name - " automatically.
+  // Pass only the room name so the title bar reads "Supervisor - RoomName".
+  // For the homepage title "Supervisor", pass '' so Chrome shows just "Supervisor" with no suffix.
+  const prefix = 'Supervisor — '
+  document.title = title.startsWith(prefix) ? title.slice(prefix.length) : ''
 }
-
-// Set early to suppress first-frame manifest-name flash in standalone windows
-if (isStandalone()) document.title = INVIS
 
 // ── Route: room list vs room detail ──────────────────────────────────────────
 const roomId = new URLSearchParams(location.search).get('room')
