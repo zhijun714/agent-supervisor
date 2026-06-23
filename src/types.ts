@@ -19,7 +19,9 @@ export interface Room {
   archSessionId?: string
   devSessionId?: string
   qaSessionId?: string
-  pinned?: boolean
+  opened?: boolean   // tab is open in the sidebar (replaces old pinned semantics)
+  pinned?: boolean   // tab is in the "关注" upper group (new semantics, old "opened" semantics migrated away)
+  order?: number     // sort key within group (lower = higher in list)
   commEnabled?: boolean
   commAdapter?: string | null
   commReceiveId?: string
