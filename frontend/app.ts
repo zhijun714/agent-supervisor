@@ -55,9 +55,9 @@ function initShell() {
   const shellHome   = document.getElementById('shellHome')!
   const openTabsEl  = document.getElementById('openTabs')!
   const homeTabBtn  = document.getElementById('homeTabBtn')!
-  // roomId → { iframe, tab } for each opened room (kept alive in the background)
+  // openTabs is the sole source of truth for which iframes exist.
+  // Render order/groups are derived from latestRooms; reordering never touches this map.
   const openTabs = new Map<string, { iframe: HTMLIFrameElement; tab: HTMLElement }>()
-  const tabOrder: string[] = []
   let activeRoomId: string | null = null
   let latestRooms: any[] = []
 
@@ -68,6 +68,17 @@ function initShell() {
       r.devDir  ? dot(r.devAlive, '')      : '',
       r.qaDir   ? dot(r.qaAlive, 'qa')     : '',
     ].join('')
+  }
+
+  // Sort opened rooms: pinned group first, then normal; each group by order asc.
+  function sortedOpenIds(): string[] {
+    return latestRooms
+      .filter(r => r.opened && openTabs.has(r.id))
+      .sort((a, b) => {
+        if (!!a.pinned !== !!b.pinned) return b.pinned ? 1 : -1
+        return (a.order ?? 0) - (b.order ?? 0)
+      })
+      .map(r => r.id)
   }
 
   const ACTIVE_KEY = 'sup-active-room'
@@ -81,7 +92,6 @@ function initShell() {
     setTitle(id ? ('Supervisor — ' + (latestRooms.find(r => r.id === id)?.name || 'Room')) : 'Supervisor')
     try { id ? localStorage.setItem(ACTIVE_KEY, id) : localStorage.removeItem(ACTIVE_KEY) } catch {}
     // Notify the room iframe that it just became visible so it can robustRefit terminals.
-    // 2×rAF: first lets display:block take effect, second lets the browser finish layout paint.
     if (id) {
       const entry = openTabs.get(id)
       if (entry) {
@@ -92,8 +102,8 @@ function initShell() {
     }
   }
 
-  // opts.activate: switch to the tab (default true). opts.persist: mark pinned
-  // server-side so it survives refresh/restart (default true; false during restore).
+  // opts.activate: switch to the tab immediately (default true).
+  // opts.persist: mark opened=true server-side (default true; false during restore).
   function openRoomTab(id: string, opts: { activate?: boolean; persist?: boolean } = {}) {
     const activate = opts.activate !== false
     const persist  = opts.persist  !== false
@@ -104,20 +114,28 @@ function initShell() {
       shellMain.appendChild(iframe)
       const tab = document.createElement('div')
       tab.className = 'room-tab'
+      tab.draggable = true
+      tab.dataset.roomId = id
       openTabsEl.appendChild(tab)
       openTabs.set(id, { iframe, tab })
-      tabOrder.push(id)
       tab.addEventListener('click', (e) => {
         if ((e.target as HTMLElement).classList.contains('room-tab-close')) return
         setActive(id)
       })
-      renderTabs()
       if (persist) {
+        // Place in normal group at the end: find max order among non-pinned opened rooms
+        const maxOrder = latestRooms
+          .filter(r => r.opened && !r.pinned)
+          .reduce((m, r) => Math.max(m, r.order ?? 0), -1)
+        // Optimistically update latestRooms so renderTabs places it correctly
+        const lr = latestRooms.find(r => r.id === id)
+        if (lr) { lr.opened = true; lr.pinned = false; lr.order = maxOrder + 1 }
         fetch('/rooms/' + id, {
           method: 'PUT', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ pinned: true }),
+          body: JSON.stringify({ opened: true, pinned: false, order: maxOrder + 1 }),
         }).catch(() => {})
       }
+      renderTabs()
     }
     if (activate) setActive(id)
   }
@@ -128,21 +146,185 @@ function initShell() {
     entry.iframe.remove()
     entry.tab.remove()
     openTabs.delete(id)
-    tabOrder.splice(tabOrder.indexOf(id), 1)
-    if (activeRoomId === id) setActive(tabOrder.length ? tabOrder[tabOrder.length - 1] : null)
-    // Unpin server-side AND kill the room's backend terminals.
+    // Determine next active: use current sorted order, pick neighbour
+    const sorted = sortedOpenIds().filter(rid => rid !== id)
+    if (activeRoomId === id) setActive(sorted.length ? sorted[sorted.length - 1] : null)
+    // Optimistically update latestRooms so poll doesn't flash the tab back
+    const lr = latestRooms.find(r => r.id === id)
+    if (lr) lr.opened = false
     fetch('/rooms/' + id + '/close', { method: 'POST' }).catch(() => {})
   }
 
+  // ── Drag-and-drop reorder / group switch ─────────────────────────────────
+  let dragId: string | null = null
+
+  function clearDragHighlights() {
+    openTabsEl.querySelectorAll('.drag-over-before,.drag-over-after').forEach(el => {
+      el.classList.remove('drag-over-before', 'drag-over-after')
+    })
+    openTabsEl.querySelectorAll('.tab-divider.drag-over').forEach(el => el.classList.remove('drag-over'))
+  }
+
+  openTabsEl.addEventListener('dragstart', (e: DragEvent) => {
+    const tab = (e.target as HTMLElement).closest('.room-tab') as HTMLElement | null
+    if (!tab) return
+    dragId = tab.dataset.roomId || null
+    e.dataTransfer!.effectAllowed = 'move'
+  })
+
+  openTabsEl.addEventListener('dragend', () => { dragId = null; clearDragHighlights() })
+
+  openTabsEl.addEventListener('dragover', (e: DragEvent) => {
+    if (!dragId) return
+    e.preventDefault()
+    e.dataTransfer!.dropEffect = 'move'
+    clearDragHighlights()
+
+    // Find what element is under the pointer
+    const target = (e.target as HTMLElement).closest('.room-tab, .tab-divider') as HTMLElement | null
+    if (!target) return
+
+    if (target.classList.contains('tab-divider')) {
+      target.classList.add('drag-over')
+      return
+    }
+    if (target.dataset.roomId === dragId) return  // hovering self
+
+    const rect = target.getBoundingClientRect()
+    const half = rect.top + rect.height / 2
+    if (e.clientY < half) target.classList.add('drag-over-before')
+    else target.classList.add('drag-over-after')
+  })
+
+  openTabsEl.addEventListener('dragleave', (e: DragEvent) => {
+    if (!(e.relatedTarget as HTMLElement)?.closest?.('#openTabs')) clearDragHighlights()
+  })
+
+  openTabsEl.addEventListener('drop', (e: DragEvent) => {
+    e.preventDefault()
+    if (!dragId) return
+    clearDragHighlights()
+
+    const sorted = sortedOpenIds()  // current render order
+    const target = (e.target as HTMLElement).closest('.room-tab, .tab-divider') as HTMLElement | null
+
+    // Determine target group and insertion index
+    let newPinned = false
+    let insertBefore: string | null = null  // null = append to group
+
+    if (target?.classList.contains('tab-divider')) {
+      // Dropped on divider → place at end of pinned group
+      newPinned = true
+      insertBefore = null
+    } else if (target?.classList.contains('room-tab')) {
+      const targetId = target.dataset.roomId!
+      const targetRoom = latestRooms.find(r => r.id === targetId)
+      newPinned = !!(targetRoom?.pinned)
+      const rect = target.getBoundingClientRect()
+      if (e.clientY < rect.top + rect.height / 2) insertBefore = targetId
+      else {
+        // insert after targetId
+        const idx = sorted.indexOf(targetId)
+        insertBefore = idx + 1 < sorted.length ? sorted[idx + 1] : null
+      }
+    } else {
+      // Dropped in empty area → append to normal group
+      newPinned = false
+      insertBefore = null
+    }
+
+    // Build new sorted list with dragId moved to target position
+    const withoutDrag = sorted.filter(id => id !== dragId)
+    let newOrder: string[]
+    if (insertBefore === null) {
+      // append to the right group
+      const groupIds = withoutDrag.filter(id => !!(latestRooms.find(r => r.id === id)?.pinned) === newPinned)
+      const otherIds = withoutDrag.filter(id => !!(latestRooms.find(r => r.id === id)?.pinned) !== newPinned)
+      if (newPinned) newOrder = [...groupIds, dragId, ...otherIds]
+      else newOrder = [...otherIds, ...groupIds, dragId]
+    } else {
+      const insertIdx = withoutDrag.indexOf(insertBefore)
+      newOrder = [...withoutDrag.slice(0, insertIdx), dragId, ...withoutDrag.slice(insertIdx)]
+    }
+
+    // Assign new order values and pinned based on position
+    // pinned group = items before divider (those whose target group is pinned)
+    // Re-derive pinned: items placed before the first non-pinned original item inherit the group
+    // Simpler: track which side of divider each item ends up on
+    const pinnedGroup = new Set<string>()
+    if (newPinned) pinnedGroup.add(dragId)
+
+    // Items already in pinned keep their group unless they crossed dragId's new position
+    // Rebuild: walk newOrder, check where the "divider" lands
+    // The divider position = between last pinned and first non-pinned in newOrder
+    // To keep it clean: use explicit group: for items that weren't the dragged one, keep their group
+    // Only the dragged item changes group to newPinned
+    const updates = newOrder.map((id, i) => {
+      const room = latestRooms.find(r => r.id === id)
+      const isPinned = id === dragId ? newPinned : !!(room?.pinned)
+      return { id, pinned: isPinned, order: i }
+    })
+
+    // Optimistically update latestRooms to prevent poll-bounce
+    for (const { id, pinned, order } of updates) {
+      const lr = latestRooms.find(r => r.id === id)
+      if (lr) { lr.pinned = pinned; lr.order = order }
+    }
+
+    // Re-render immediately with new order
+    renderTabs()
+    setActive(activeRoomId)  // re-apply active class
+
+    // Persist batch
+    fetch('/tabs/layout', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updates),
+    }).catch(() => {})
+
+    dragId = null
+  })
+  // ── End drag-and-drop ────────────────────────────────────────────────────
+
   function renderTabs() {
-    for (const id of tabOrder) {
+    const sorted = sortedOpenIds()
+    // Clear existing tab DOM (but not iframes — openTabs map holds the iframe refs)
+    openTabsEl.innerHTML = ''
+    let inNormalGroup = false
+
+    for (const id of sorted) {
       const entry = openTabs.get(id); if (!entry) continue
-      const r = latestRooms.find(x => x.id === id) || { name: id, id }
+      const r = latestRooms.find(x => x.id === id) || { name: id, id, pinned: false }
+
+      // Insert divider when we transition from pinned → normal
+      if (!r.pinned && !inNormalGroup) {
+        inNormalGroup = true
+        const divider = document.createElement('div')
+        divider.className = 'tab-divider'
+        divider.innerHTML = '<div class="tab-divider-label">普通</div><div class="tab-divider-line"></div>'
+        openTabsEl.appendChild(divider)
+      }
+
       entry.tab.innerHTML =
         `<div class="room-tab-dots">${statusDots(r)}</div>` +
         `<div class="room-tab-name">${escHtml(r.name)}</div>` +
         `<div class="room-tab-close" title="关闭标签">✕</div>`
-      entry.tab.querySelector('.room-tab-close')!.addEventListener('click', (e) => { e.stopPropagation(); closeRoomTab(id) })
+      entry.tab.draggable = true
+      entry.tab.dataset.roomId = id
+      entry.tab.classList.toggle('active', id === activeRoomId)
+      entry.tab.querySelector('.room-tab-close')!.addEventListener('click', (e) => {
+        e.stopPropagation(); closeRoomTab(id)
+      })
+      openTabsEl.appendChild(entry.tab)
+    }
+
+    // If no normal items were added, still show the divider (drop target for empty normal group)
+    // If no pinned items AND no normal items rendered yet, show divider after pinned section
+    // Always show the divider between the two groups
+    if (!inNormalGroup) {
+      const divider = document.createElement('div')
+      divider.className = 'tab-divider'
+      divider.innerHTML = '<div class="tab-divider-label">普通</div><div class="tab-divider-line"></div>'
+      openTabsEl.appendChild(divider)
     }
   }
 
@@ -152,12 +334,15 @@ function initShell() {
   async function loadRooms() {
     try {
       latestRooms = await fetch('/rooms').then(r => r.json())
-      // First successful load: re-open tabs for rooms pinned server-side, so the
-      // sidebar survives page refresh and server restart.
+      // First successful load: re-open tabs for rooms with opened=true server-side.
       if (!restored) {
         restored = true
-        const pinned = latestRooms.filter(r => r.pinned)
-        for (const r of pinned) openRoomTab(r.id, { activate: false, persist: false })
+        const opened = latestRooms.filter(r => r.opened)
+          .sort((a, b) => {
+            if (!!a.pinned !== !!b.pinned) return b.pinned ? 1 : -1
+            return (a.order ?? 0) - (b.order ?? 0)
+          })
+        for (const r of opened) openRoomTab(r.id, { activate: false, persist: false })
         let active: string | null = null
         try { active = localStorage.getItem(ACTIVE_KEY) } catch {}
         if (active && openTabs.has(active)) setActive(active)

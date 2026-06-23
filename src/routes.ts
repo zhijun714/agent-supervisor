@@ -224,18 +224,21 @@ export function createRequestHandler(port: number) {
         if (archCli !== undefined && validClis.includes(archCli as string)) rooms[id].archCli = archCli as string
         if (devCli  !== undefined && validClis.includes(devCli  as string)) rooms[id].devCli  = devCli  as string
         if (qaCli   !== undefined && validClis.includes(qaCli   as string)) rooms[id].qaCli   = qaCli   as string
-        if ((parsed as { pinned?: unknown }).pinned !== undefined) rooms[id].pinned = !!(parsed as { pinned?: unknown }).pinned
+        const p = parsed as { pinned?: unknown; opened?: unknown; order?: unknown }
+        if (p.pinned  !== undefined) rooms[id].pinned  = !!(p.pinned)
+        if (p.opened  !== undefined) rooms[id].opened  = !!(p.opened)
+        if (p.order   !== undefined) rooms[id].order   = Number(p.order)
         rooms[id].updatedAt = Date.now()
         saveRooms()
         json({ ok: true, room: rooms[id] }); return
       }
 
-      // Close a tab: unpin it from the sidebar AND kill its backend terminals.
+      // Close a tab: mark opened=false AND kill its backend terminals.
       const closeMatch = url.pathname.match(/^\/rooms\/([^/]+)\/close$/)
       if (req.method === 'POST' && closeMatch) {
         const id = closeMatch[1]
         if (!rooms[id]) { json({ error: 'Room not found' }, 404); return }
-        rooms[id].pinned = false
+        rooms[id].opened = false
         rooms[id].updatedAt = Date.now()
         for (const role of ['arch', 'dev', 'qa']) {
           const termId = `${id}-${role}`
@@ -243,6 +246,18 @@ export function createRequestHandler(port: number) {
         }
         saveRooms()
         broadcast({ type: 'room_closed', roomId: id })
+        json({ ok: true }); return
+      }
+
+      // Batch update tab layout (drag-reorder / group change).
+      // Body: [{id, pinned, order}]  — one saveRooms at the end to avoid race.
+      if (req.method === 'POST' && url.pathname === '/tabs/layout') {
+        const updates = parsed as { id: string; pinned: boolean; order: number }[]
+        if (!Array.isArray(updates)) { json({ error: 'expected array' }, 400); return }
+        for (const { id, pinned, order } of updates) {
+          if (rooms[id]) { rooms[id].pinned = !!(pinned); rooms[id].order = Number(order) }
+        }
+        saveRooms()
         json({ ok: true }); return
       }
 
