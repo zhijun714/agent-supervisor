@@ -998,7 +998,8 @@ function initRoomDetail(roomId: string) {
   function connectPtyWs(obj: ReturnType<typeof createTerminal>, termId: string, statusEl: HTMLElement | null) {
     if (obj.ws) { try { obj.ws.close() } catch(e){} obj.ws = null }
     if (statusEl) statusEl.textContent = '⟳ 连接中…'
-    const ws = new WebSocket(`ws://${location.host}/pty/` + termId)
+    const WS = location.protocol === 'https:' ? 'wss:' : 'ws:'
+    const ws = new WebSocket(`${WS}//${location.host}/pty/` + termId)
     ws.binaryType = 'arraybuffer'
     obj.ws = ws
     ws.onopen = () => {
@@ -1041,7 +1042,8 @@ function initRoomDetail(roomId: string) {
   let eventWs: WebSocket | null = null
   function connectEventWs() {
     if (eventWs) { try { eventWs.close() } catch(e){} }
-    eventWs = new WebSocket(`ws://${location.host}`)
+    const WS = location.protocol === 'https:' ? 'wss:' : 'ws:'
+    eventWs = new WebSocket(`${WS}//${location.host}`)
     eventWs.onopen  = () => { statusDot.classList.add('on'); statusLabel.textContent = 'Connected' }
     eventWs.onclose = () => { statusDot.classList.remove('on'); statusLabel.textContent = 'Disconnected'; setTimeout(connectEventWs, 3000) }
     eventWs.onmessage = (evt: MessageEvent) => {
