@@ -1,7 +1,8 @@
 import type { WebSocket } from 'ws'
-import type { Room, PTYEntry, InboxState, RoomState } from './types.js'
+import type { Room, PTYEntry, InboxState, RoomState, Group } from './types.js'
 
 export const rooms: Record<string, Room> = {}
+export const groups: Group[] = []
 export const ptys: Record<string, PTYEntry> = {}
 export const inboxes: Record<string, InboxState> = {}
 export const roomStates: Record<string, RoomState> = {}

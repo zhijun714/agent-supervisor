@@ -35,7 +35,7 @@ const HOST = process.env.HOST || '0.0.0.0'
 import { PORT } from './config.js'
 import { WS_PING_INTERVAL_MS } from './constants.js'
 import { clients, ptys } from './state.js'
-import { loadRooms } from './persistence.js'
+import { loadRooms, loadGroups } from './persistence.js'
 import { setInboxSend, commSend, maybeAutoStartComm } from './comm.js'
 import { inboxSend } from './inbox.js'
 import { registerCommSend } from './distiller.js'
@@ -44,6 +44,7 @@ import { createRequestHandler } from './routes.js'
 setInboxSend(inboxSend)
 registerCommSend(commSend)
 loadRooms()
+loadGroups()
 
 const server = http.createServer(createRequestHandler(PORT))
 
