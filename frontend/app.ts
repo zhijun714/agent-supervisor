@@ -61,7 +61,7 @@ function initShell() {
     for (const [rid, { iframe }] of openTabs) iframe.style.display = rid === id ? 'block' : 'none'
     homeTabBtn.classList.toggle('active', id === null)
     openTabs.forEach(({ tab }, rid) => tab.classList.toggle('active', rid === id))
-    document.title = id ? ('Supervisor — ' + (latestRooms.find(r => r.id === id)?.name || 'Room')) : 'Supervisor'
+    document.title = ''
     try { id ? localStorage.setItem(ACTIVE_KEY, id) : localStorage.removeItem(ACTIVE_KEY) } catch {}
   }
 
@@ -824,7 +824,7 @@ function initRoomDetail(roomId: string) {
       currentRoom = rooms.find((r: any) => r.id === roomId)
       if (!currentRoom) { alert('Room not found'); location.href = '/'; return null }
       roomNameDisplay.textContent = currentRoom.name
-      document.title = 'Supervisor — ' + currentRoom.name
+      document.title = ''
       const loadedArchCli = currentRoom.archCli || 'claude'
       const loadedDevCli  = currentRoom.devCli  || 'claude'
       archCliSelect.value = loadedArchCli
@@ -901,7 +901,7 @@ function initRoomDetail(roomId: string) {
     if (name !== currentRoom?.name) {
       await fetch('/rooms/' + roomId, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) }).catch(() => {})
       if (currentRoom) currentRoom.name = name
-      document.title = 'Supervisor — ' + name
+      document.title = ''
     }
   }
   roomNameInput.addEventListener('blur', saveRoomName)

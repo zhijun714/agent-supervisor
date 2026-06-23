@@ -49,6 +49,39 @@ export function createRequestHandler(port: number) {
       return
     }
 
+    if (req.method === 'GET' && url.pathname === '/sw.js') {
+      const sw = [
+        "self.addEventListener('install', () => self.skipWaiting())",
+        "self.addEventListener('activate', e => e.waitUntil(self.clients.claim()))",
+        "// Empty fetch handler: satisfies Chrome installability check without intercepting requests.",
+        "// No respondWith() call → browser falls through to network, server no-cache headers always apply.",
+        "self.addEventListener('fetch', () => {})",
+      ].join('\n')
+      res.writeHead(200, { 'Content-Type': 'application/javascript', 'Cache-Control': 'no-cache, no-store, must-revalidate', 'Service-Worker-Allowed': '/', ...cors })
+      res.end(sw)
+      return
+    }
+
+    if (req.method === 'GET' && url.pathname === '/manifest.json') {
+      const iconSvgB64 = 'PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxOTIgMTkyIj48cmVjdCB3aWR0aD0iMTkyIiBoZWlnaHQ9IjE5MiIgcng9IjMyIiBmaWxsPSIjMGYxMTE3Ii8+PHJlY3QgeD0iMzIiIHk9IjU2IiB3aWR0aD0iMTI4IiBoZWlnaHQ9IjE0IiByeD0iNCIgZmlsbD0iIzNmYjk1MCIvPjxyZWN0IHg9Ijc4IiB5PSI1NiIgd2lkdGg9IjE0IiBoZWlnaHQ9IjEwMCIgcng9IjQiIGZpbGw9IiM1OGE2ZmYiLz48cmVjdCB4PSIzMiIgeT0iNzAiIHdpZHRoPSIyMiIgaGVpZ2h0PSIxOCIgcng9IjQiIGZpbGw9IiNlM2IzNDEiLz48cmVjdCB4PSIxMjIiIHk9IjcwIiB3aWR0aD0iNCIgaGVpZ2h0PSI1NiIgcng9IjIiIGZpbGw9IiM4Yjk0OWUiLz48cmVjdCB4PSIxMTIiIHk9IjEyMiIgd2lkdGg9IjI0IiBoZWlnaHQ9IjEwIiByeD0iNCIgZmlsbD0iI2Y4NTE0OSIvPjxyZWN0IHg9IjY0IiB5PSIxNTYiIHdpZHRoPSI0MCIgaGVpZ2h0PSI4IiByeD0iMyIgZmlsbD0iIzU4YTZmZiIvPjwvc3ZnPg=='
+      const iconUri = 'data:image/svg+xml;base64,' + iconSvgB64
+      const manifest = {
+        name: 'Supervisor',
+        short_name: 'Supervisor',
+        start_url: '/',
+        display: 'standalone',
+        background_color: '#0f1117',
+        theme_color: '#0f1117',
+        icons: [
+          { src: iconUri, sizes: '192x192', type: 'image/svg+xml' },
+          { src: iconUri, sizes: '512x512', type: 'image/svg+xml' },
+        ],
+      }
+      res.writeHead(200, { 'Content-Type': 'application/manifest+json', 'Cache-Control': 'no-cache, no-store, must-revalidate', ...cors })
+      res.end(JSON.stringify(manifest))
+      return
+    }
+
     // ── Simple GET API routes (no body needed) ─────────────────────────────
     if (req.method === 'GET' && url.pathname === '/prefs') {
       let prefs: Record<string, unknown> = {}
