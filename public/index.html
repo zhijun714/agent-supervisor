@@ -75,9 +75,34 @@
   #shellHome { position: absolute; inset: 0; overflow: hidden; display: flex; flex-direction: column; }
 
   @media (max-width: 768px) {
-    #roomShellView { flex-direction: column; }
-    #roomTabBar { width: 100%; height: auto; max-height: 40vh; border-right: none; border-bottom: 1px solid var(--border); }
+    /* Sidebar hides by default; opens as overlay drawer on .mob-open */
+    #roomTabBar { display: none; }
+    #roomTabBar.mob-open {
+      display: flex; flex-direction: column;
+      position: fixed; top: 0; left: 0; width: min(280px, 85vw); height: 100dvh;
+      z-index: 999; box-shadow: 4px 0 24px rgba(0,0,0,0.5);
+    }
+    /* Backdrop behind the drawer */
+    #mobBackdrop {
+      display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.45);
+      z-index: 998; cursor: pointer;
+    }
+    #mobBackdrop.mob-open { display: block; }
+    /* Hamburger FAB — bottom-left, away from iframe header & mobile role tabs */
+    #mobileMenuBtn {
+      display: flex; align-items: center; justify-content: center;
+      position: fixed; bottom: 20px; left: 16px; width: 44px; height: 44px;
+      border-radius: 50%; background: var(--bg3); border: 1px solid var(--border);
+      color: var(--text); font-size: 18px; cursor: pointer; z-index: 997;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.35);
+    }
   }
+  @media (min-width: 769px) {
+    #mobileMenuBtn, #mobBackdrop { display: none !important; }
+  }
+  /* iOS terminal scrolling — momentum scroll + GPU compositing layer */
+  .xterm-viewport { -webkit-overflow-scrolling: touch; }
+  .xterm { transform: translateZ(0); }
 
   /* ── ROOM LIST ─────────────────────────────────────────────────────────── */
   #roomListView {
@@ -408,6 +433,10 @@
 
 <!-- ── ROOM LIST VIEW ────────────────────────────────────────────────────── -->
 <div id="roomShellView" style="display:none">
+  <!-- Mobile overlay backdrop (closes drawer on tap) -->
+  <div id="mobBackdrop"></div>
+  <!-- Mobile hamburger button (FAB, bottom-left, only visible on mobile) -->
+  <button id="mobileMenuBtn" aria-label="打开房间列表">☰</button>
   <aside id="roomTabBar">
     <div id="tabBarHeader">🏗 Supervisor</div>
     <div id="openTabs"></div>

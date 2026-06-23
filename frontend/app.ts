@@ -55,6 +55,15 @@ function initShell() {
   const shellHome   = document.getElementById('shellHome')!
   const openTabsEl  = document.getElementById('openTabs')!
   const homeTabBtn  = document.getElementById('homeTabBtn')!
+  const roomTabBar  = document.getElementById('roomTabBar')!
+  const mobBackdrop = document.getElementById('mobBackdrop')!
+  const mobileMenuBtn = document.getElementById('mobileMenuBtn')!
+
+  function openMobileSidebar()  { roomTabBar.classList.add('mob-open'); mobBackdrop.classList.add('mob-open') }
+  function closeMobileSidebar() { roomTabBar.classList.remove('mob-open'); mobBackdrop.classList.remove('mob-open') }
+
+  mobileMenuBtn.addEventListener('click', openMobileSidebar)
+  mobBackdrop.addEventListener('click', closeMobileSidebar)
   // openTabs is the sole source of truth for which iframes exist.
   // Render order/groups are derived from latestRooms; reordering never touches this map.
   const openTabs = new Map<string, { iframe: HTMLIFrameElement; tab: HTMLElement }>()
@@ -85,6 +94,7 @@ function initShell() {
 
   function setActive(id: string | null) {
     activeRoomId = id
+    closeMobileSidebar()
     shellHome.style.display = id === null ? 'flex' : 'none'
     for (const [rid, { iframe }] of openTabs) iframe.style.display = rid === id ? 'block' : 'none'
     homeTabBtn.classList.toggle('active', id === null)
@@ -1864,6 +1874,9 @@ function initRoomDetail(roomId: string) {
     // Load and apply per-room collapse state now that roleEnabled is set by loadRoom()
     loadCollapse()
     applyCollapse()
+    // Re-apply mobile layout: loadRoom() calls applyRoleVisibility which sets all panels
+    // to display:none on mobile; applyMobileLayout must run again to show the active panel.
+    applyMobileLayout()
     restoreInboxBadges()
     connectEventWs()
 
