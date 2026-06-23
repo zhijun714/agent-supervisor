@@ -11,9 +11,10 @@ room-memories/
 # Generated files (rebuilt on server start)
 /tmp/
 
-# macOS
+# macOS / 临时测试产物
 .DS_Store
 *.bak
+.playwright-mcp/
 
 # Images (binary, not useful in source)
 *.png
