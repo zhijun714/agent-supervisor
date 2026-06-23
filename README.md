@@ -174,7 +174,8 @@ agent-supervisor/
 │   ├── rotation.ts        # 会话轮转（上下文溢出自动续接，默认关闭）
 │   └── distiller.ts       # 知识蒸馏（PTY 输出提炼 → ai-docs，默认关闭）
 ├── frontend/
-│   └── app.ts             # 浏览器 UI（esbuild 打包 → public/app.js）
+│   ├── app.ts             # 浏览器 UI（esbuild 打包 → public/app.js）
+│   └── themes.ts          # 16 套终端/界面配色 + 主题推导工具
 ├── public/
 │   └── index.html         # HTML 外壳
 ├── prompts/
@@ -184,6 +185,7 @@ agent-supervisor/
 ├── build.mjs              # esbuild 前端打包脚本
 ├── supervisor.config.json # 运行时参数覆盖（可选，深度合并到默认值）
 ├── .env.example           # 环境变量模板
+├── ui-prefs.json          # 全局 UI 偏好（主题等，已加入 .gitignore）
 └── room-memories/         # 房间决策日志（已加入 .gitignore）
 ```
 
