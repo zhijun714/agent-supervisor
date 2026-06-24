@@ -681,23 +681,36 @@ function initRoomDetail(roomId: string) {
   // Reliable refit: force xterm to re-measure character cell dimensions (cached from
   // hidden-state open), then fit and refresh. The charSizeService call is a private API
   // so we isolate its failure separately — fit+refresh must always run.
-  function robustFit(obj: { term: Terminal; fitAddon: FitAddon }, _retry = true) {
-    try { (obj.term as any)._core._charSizeService.measure() }
+  //
+  // B: bounded self-healing retry on defaultSpacing anomaly.
+  // _rowContainer.style.letterSpacing = cellWidth - widthCache("W"); normal ≈ 0, bad ≈ 3.18.
+  // If |defaultSpacing| > 0.5 the cell width measurement is stale/wrong → retry up to 3×.
+  // On each retry, handleCharSizeChanged() is called after measure() to force widthCache
+  // clear + defaultSpacing recalc without depending on the onCharSizeChange event.
+  const _ROBUST_DELAYS = [120, 250, 500]
+  function robustFit(obj: { term: Terminal; fitAddon: FitAddon }, _retry = 0) {
+    const core = (obj.term as any)._core
+    try { core._charSizeService.measure() }
     catch { console.warn('[supervisor] charSizeService.measure() unavailable — xterm version changed?') }
+    // On retries: force widthCache clear + defaultSpacing recalc (A folded in).
+    // Not called on initial pass — only needed once the anomaly is confirmed.
+    if (_retry > 0) {
+      try {
+        const rdr = core?._renderService?._renderer?.value
+        rdr?.handleCharSizeChanged?.()
+      } catch {}
+    }
     try { obj.fitAddon.fit() } catch {}
     try { obj.term.refresh(0, obj.term.rows - 1) } catch {}
-    // Layer 3: validate cell dimensions after fit; retry once if they look implausible.
-    // Catches w=0 (font not loaded) and extreme outliers (font substitution edge cases).
-    if (_retry) {
-      const svc = (obj.term as any)._core?._charSizeService
-      const w = svc?.width ?? 8
-      const h = svc?.height ?? 16
-      const fontSize = ((obj.term.options as any).fontSize as number) || 13
-      const wOk = w > 0 && w < fontSize * 0.85
-      const hOk = h > 0
-      if (!wOk || !hOk) {
-        setTimeout(() => robustFit(obj, false), 120)
-      }
+    if (_retry < 3) {
+      try {
+        const ds = parseFloat(
+          core?._renderService?._renderer?.value?._rowContainer?.style?.letterSpacing ?? '0'
+        )
+        if (Math.abs(ds) > 0.5) {
+          setTimeout(() => robustFit(obj, _retry + 1), _ROBUST_DELAYS[_retry])
+        }
+      } catch {}
     }
   }
 
