@@ -146,9 +146,8 @@
   @media (min-width: 769px) {
     #mobileMenuBtn, #mobBackdrop { display: none !important; }
   }
-  /* iOS terminal scrolling — momentum scroll + GPU compositing layer */
+  /* iOS terminal scrolling — momentum scroll on scroll container */
   .xterm-viewport { -webkit-overflow-scrolling: touch; }
-  .xterm { transform: translateZ(0); }
 
   /* ── ROOM LIST ─────────────────────────────────────────────────────────── */
   #roomListView {
@@ -479,6 +478,8 @@
   @media (max-width: 768px) {
     #mobileTabs { display: flex; }
     #mobileKeyBar { display: flex; }
+    /* xterm handles touch scroll via JS — tell browser not to intercept */
+    .xterm-viewport { touch-action: none; }
     /* Hide dir bar — too cramped on mobile */
     .hdr-dirs { display: none; }
     /* Session picker: single-column scroll */

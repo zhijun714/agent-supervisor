@@ -775,7 +775,8 @@ function initRoomDetail(roomId: string) {
     const container = document.getElementById(containerId)!
     const term = new Terminal({
       theme: toXtermTheme(THEMES[getSavedTheme()]) as any, fontFamily: '"SF Mono","Fira Code","Cascadia Code",Menlo,monospace',
-      fontSize: 13, lineHeight: 1.25, cursorBlink: true, scrollback: 10000, allowTransparency: false,
+      fontSize: 13, lineHeight: 1.25, cursorBlink: true, allowTransparency: false,
+      scrollback: (navigator.maxTouchPoints > 1 || /Mobi|iPhone|iPad|Android/i.test(navigator.userAgent)) ? 1500 : 10000,
     })
     const fitAddon = new FitAddon()
     term.loadAddon(fitAddon)
