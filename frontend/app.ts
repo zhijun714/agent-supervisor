@@ -373,7 +373,12 @@ function initShell() {
   }
 
   // ── Render groups ─────────────────────────────────────────────────────────
+  // Guard: skip re-render while the user is typing in an inline group-name input.
+  // Polling-driven calls to renderGroups() would otherwise destroy the input mid-edit.
+  let _editingGroupName = false
+
   function renderGroups() {
+    if (_editingGroupName) return
     const sorted = [...latestGroups].sort((a, b) => a.order - b.order)
     openTabsEl.innerHTML = ''
 
@@ -430,8 +435,10 @@ function initShell() {
         input.className = 'group-name-input'
         input.value = old
         nameEl.replaceWith(input)
+        _editingGroupName = true
         input.focus(); input.select()
         const commit = () => {
+          _editingGroupName = false
           const newName = input.value.trim() || old
           input.replaceWith(document.createTextNode(newName))
           header.querySelector('span.group-name')?.remove()
@@ -444,6 +451,7 @@ function initShell() {
             method: 'PUT', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ name: newName }),
           }).catch(() => {})
+          renderGroups()
         }
         input.addEventListener('blur', commit)
         input.addEventListener('keydown', (ke) => { if (ke.key === 'Enter') { ke.preventDefault(); input.blur() } else if (ke.key === 'Escape') { input.value = old; input.blur() } })
