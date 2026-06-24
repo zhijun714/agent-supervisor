@@ -447,6 +447,10 @@ function initShell() {
           span.textContent = newName
           header.querySelector('.group-count')!.before(span)
           g.name = newName
+          // Optimistic update: polls may have replaced latestGroups during editing,
+          // so also patch the live cache to avoid a stale-name flash until next poll.
+          const _lg = latestGroups.find(x => x.id === g.id)
+          if (_lg) _lg.name = newName
           fetch('/groups/' + g.id, {
             method: 'PUT', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ name: newName }),
