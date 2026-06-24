@@ -895,7 +895,11 @@ function initRoomDetail(roomId: string) {
     }
   }
 
+  // Track which mobile tab is active so the key bar sends to the right terminal.
+  let mobileActiveRole = 'arch'
+
   function activateMobileTab(role: string) {
+    mobileActiveRole = role
     const tabsEl = document.getElementById('mobileTabs')
     if (!tabsEl) return
     tabsEl.querySelectorAll('.mobile-tab').forEach(t => t.classList.remove('active'))
@@ -921,6 +925,27 @@ function initRoomDetail(roomId: string) {
 
   mobileQuery.addEventListener('change', applyMobileLayout)
   applyMobileLayout()
+
+  // ── Mobile key bar ────────────────────────────────────────────────────────
+  // Sends escape sequences to the currently active mobile terminal via its WS.
+  // Uses ws.send() directly (not term.paste) so direction/Esc keys reach PTY
+  // without bracketed-paste wrapping.
+  const _KEY_SEQS: Record<string, string> = {
+    up: '\x1b[A', down: '\x1b[B', left: '\x1b[D', right: '\x1b[C',
+    enter: '\r', esc: '\x1b', tab: '\t', ctrlc: '\x03',
+  }
+  function _sendMobileKey(seq: string) {
+    const obj = mobileActiveRole === 'dev' ? devObj
+              : mobileActiveRole === 'qa'  ? (qaObj ?? archObj)
+              : archObj
+    if (obj?.ws?.readyState === 1) obj.ws.send(seq)
+  }
+  document.querySelectorAll<HTMLElement>('#mobileKeyBar .m-key').forEach(btn => {
+    const seq = _KEY_SEQS[btn.dataset.seq ?? '']
+    if (!seq) return
+    btn.addEventListener('touchstart', (e) => { e.preventDefault(); _sendMobileKey(seq) }, { passive: false })
+    btn.addEventListener('click', () => _sendMobileKey(seq))
+  })
 
   // When the shell makes this iframe visible (tab switch), it sends room_activated.
   // We robustRefit here because term.open() may have run while the iframe was hidden,

@@ -459,8 +459,26 @@
   .mobile-tab[data-panel="dev"].active  { background: rgba(86,211,100,0.12);  border-color: #56d364; color: #56d364; }
   .mobile-tab[data-panel="qa"].active   { background: rgba(227,179,65,0.12);  border-color: var(--amber); color: var(--amber); }
 
+  /* ── MOBILE KEY BAR ─────────────────────────────────────────────────────── */
+  #mobileKeyBar {
+    display: none; flex-direction: row; align-items: center; gap: 4px;
+    padding: 4px 8px; background: var(--bg2); border-top: 1px solid var(--border);
+    overflow-x: auto; -webkit-overflow-scrolling: touch; flex-shrink: 0;
+  }
+  #mobileKeyBar::-webkit-scrollbar { display: none; }
+  .m-key {
+    flex-shrink: 0; min-width: 38px; height: 34px; padding: 0 6px;
+    background: var(--bg3); border: 1px solid var(--border); border-radius: 5px;
+    color: var(--text); font-size: 12px; font-weight: 500; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    user-select: none; -webkit-user-select: none; touch-action: manipulation;
+    transition: background 0.1s;
+  }
+  .m-key:active { background: var(--bg4, var(--border)); }
+
   @media (max-width: 768px) {
     #mobileTabs { display: flex; }
+    #mobileKeyBar { display: flex; }
     /* Hide dir bar — too cramped on mobile */
     .hdr-dirs { display: none; }
     /* Session picker: single-column scroll */
@@ -691,6 +709,17 @@
       </div>
       <div class="term-wrap" id="qaTermEl"></div>
     </div>
+  </div>
+
+  <div id="mobileKeyBar">
+    <button class="m-key" data-seq="up">↑</button>
+    <button class="m-key" data-seq="down">↓</button>
+    <button class="m-key" data-seq="left">←</button>
+    <button class="m-key" data-seq="right">→</button>
+    <button class="m-key" data-seq="enter">↵</button>
+    <button class="m-key" data-seq="esc">Esc</button>
+    <button class="m-key" data-seq="tab">Tab</button>
+    <button class="m-key" data-seq="ctrlc">^C</button>
   </div>
 
   <div id="relayBar">
