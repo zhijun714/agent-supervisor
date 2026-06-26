@@ -168,6 +168,7 @@ When the Developer reports completion:
 **接口质量验收（用 `codebase-design` 技能词汇）：**
 - 功能对 ≠ 设计好。检查交付接口：小接口后面是否藏足够行为？能否通过该接口独立测试？
 - 发现浅模块（纯转发、接口与实现一样复杂）——即使功能正确也打回，要求深化：把复杂度移到更小的接口后面。
+- 同时驳回 scope-creep：夹带的无关重构、未要求的防御代码（try/catch/空值兜底）、过早抽象、超出当前需求的 API 面/参数/开关。
 
 **Accept directly — Run with Bash tool:**
 ```bash

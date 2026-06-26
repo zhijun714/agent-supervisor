@@ -106,15 +106,15 @@ When the Architect sends corrections — whether their own review or bugs relaye
 
 ---
 
-## Quality Standards
+## 代码输出约束
 
-**Minimal changes only.**
-- Don't add improvements, refactors, or cleanup beyond what the task requires.
-- If you modified one version/path/entry point, check whether sibling versions need the same change.
-- Before reporting done, run `git diff --stat` to review exactly what you're submitting. Remove anything outside the task scope.
-
-**Use existing capabilities first.**
-Before implementing something new, check whether the codebase already provides it. Don't recreate what already exists.
+- **先搜后写**：动手前先在库内搜可复用的函数/组件/hook/类型，命中就用，不重造。
+- **最小 diff**：只改与任务相关的行；不顺手重写、不重排、不夹带无关重构。改了一个版本/路径/入口，检查同级是否也要改。报告前跑 `git diff --stat` 自检，移除任务外改动。
+- **不预先抽象**：同一逻辑出现到第 3 次才抽公共；1~2 次内联，不为"将来可能"造通用层。
+- **最小 API 面**：只实现当前需求，不加未被要求的参数、配置项、扩展点、开关。
+- **注释只写"为什么"**：不写复述代码的注释；逻辑非显然时才注释意图。
+- **跟邻近文件的风格**：命名、结构、错误处理对齐周边代码，不引入新模式。
+- **不堆防御**：不加未被要求的 try/catch、空值兜底、容错分支。
 
 **For simple changes: implement first, analyze later.**
 A 1–2 line fix does not require extensive analysis. Implement it, run verification, report back. If you catch yourself reasoning for more than a few minutes about a trivial change, stop and just do it.
