@@ -1,0 +1,34 @@
+{
+  "vendorDir": "~/.cache/claude-skills-vendor",
+  "installDir": "~/.claude/skills",
+  "sources": [
+    {
+      "name": "matt-pocock",
+      "repo": "https://github.com/mattpocock/skills.git",
+      "commit": "5d78bd0903420f97c791f834201e550c765699f8",
+      "skillsRoot": "skills"
+    },
+    {
+      "name": "superpowers",
+      "repo": "https://github.com/obra/superpowers.git",
+      "commit": "896224c4b1879920ab573417e68fd51d2ccc9072",
+      "skillsRoot": "skills"
+    }
+  ],
+  "skills": [
+    { "source": "matt-pocock", "path": "engineering/codebase-design",              "tier": "core"     },
+    { "source": "matt-pocock", "path": "engineering/domain-modeling",               "tier": "core"     },
+    { "source": "matt-pocock", "path": "engineering/tdd",                           "tier": "core"     },
+    { "source": "matt-pocock", "path": "engineering/diagnosing-bugs",               "tier": "core"     },
+    { "source": "matt-pocock", "path": "engineering/resolving-merge-conflicts",     "tier": "core"     },
+    { "source": "superpowers", "path": "verification-before-completion",            "tier": "core"     },
+    { "source": "superpowers", "path": "requesting-code-review",                    "tier": "core"     },
+    { "source": "superpowers", "path": "receiving-code-review",                     "tier": "core"     },
+    { "source": "matt-pocock", "path": "engineering/improve-codebase-architecture", "tier": "optional" },
+    { "source": "matt-pocock", "path": "engineering/grill-with-docs",               "tier": "optional" },
+    { "source": "matt-pocock", "path": "engineering/prototype",                     "tier": "optional" },
+    { "source": "matt-pocock", "path": "productivity/grilling",                     "tier": "optional" },
+    { "source": "superpowers", "path": "brainstorming",                             "tier": "optional" },
+    { "source": "superpowers", "path": "writing-plans",                             "tier": "optional" }
+  ]
+}

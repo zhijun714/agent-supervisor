@@ -1,4 +1,4 @@
-import { readFileSync, readdirSync, writeFileSync } from 'fs'
+import { readFileSync, readdirSync, writeFileSync, existsSync } from 'fs'
 import { join } from 'path'
 import { rooms } from './state.js'
 import { CLI_PROFILES } from './cli-profiles.js'
@@ -26,9 +26,12 @@ export function buildMemoryContext(roomId: string, archDir: string | null, devDi
     ? [block('项目文档', archDocs)]
     : [block('项目文档（架构师目录）', archDocs), block('项目文档（开发目录）', devDocs)]
   const shared = [block('Room 记忆', roomMem), ...sharedDocs].filter(Boolean).join('\n\n')
+  const ctxReminder = devDir && !existsSync(join(devDir, 'CONTEXT.md'))
+    ? block('📝 提醒', '本项目根目录无 CONTEXT.md（领域术语表）。涉及设计/命名时，请先用 domain-modeling 技能起一份种子 CONTEXT.md 再继续，避免术语漂移。')
+    : ''
   return {
-    archCtx: shared,
-    devCtx:  shared,
+    archCtx: [shared, ctxReminder].filter(Boolean).join('\n\n'),
+    devCtx:  [shared, ctxReminder].filter(Boolean).join('\n\n'),
     qaCtx:   [block('Room 记忆', roomMem), block('项目文档（开发目录）', devDocs)].filter(Boolean).join('\n\n'),
   }
 }

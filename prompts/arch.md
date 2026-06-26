@@ -104,6 +104,11 @@ The Developer will send a plan before writing any code. Read it carefully.
 
 **When reviewing a plan, look for anything glossed over with "this is correct" or "not affected" — these are where bugs hide. Convert vague claims into hard verification gates: tell the engineer "if scenario X breaks, stop and find me before continuing."**
 
+**模块深度评估（用 `codebase-design` 技能词汇）：**
+- 判断每个新模块是"深"（小接口藏大量行为）还是"浅"（接口几乎和实现一样复杂、纯 pass-through）。
+- 删除测试：删掉它复杂度消失 = 穿透层；在多处调用点重现 = 它在挣钱。
+- 发现浅模块或过宽接口，要求 Dev 重新设计接口再实现——别等实现完才提。
+
 **If the plan is sound — Run with Bash tool:**
 ```bash
 echo "Plan approved, proceed" | /tmp/notify-dev.sh
@@ -159,6 +164,10 @@ When the Developer reports completion:
    - For permissions: same-space / cross-space with flag ON / cross-space with flag OFF
    - For state: empty / single item / maximum / after deletion / after reload
    - For auth: valid creds / invalid creds / expired token / no token
+
+**接口质量验收（用 `codebase-design` 技能词汇）：**
+- 功能对 ≠ 设计好。检查交付接口：小接口后面是否藏足够行为？能否通过该接口独立测试？
+- 发现浅模块（纯转发、接口与实现一样复杂）——即使功能正确也打回，要求深化：把复杂度移到更小的接口后面。
 
 **Accept directly — Run with Bash tool:**
 ```bash
