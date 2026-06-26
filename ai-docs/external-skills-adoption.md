@@ -12,6 +12,23 @@
 
 ---
 
+## 四个工具是什么
+
+- **Superpowers**（obra/superpowers，~17.7 万星）：Agent 行为规范技能框架，14 个 skill 专治 AI 走捷径（不验证就报完成、不读 stack trace 就猜 bug）。适配 Claude Code / Codex / Kimi 等多 CLI。
+- **Matt Pocock skills**（mattpocock/skills）："给真正工程师的技能"，核心是深模块设计（codebase-design）+ 领域建模（domain-modeling）+ TDD，以设计哲学为导向。Claude 原生，无外部依赖。
+- **gstack**（garrytan/gstack，~11.5 万星）：让"一个 Claude 扮演整支团队"（CEO / 工程 / 设计 / QA / 发布），含浏览器 QA 能力，需要 Bun 运行时 + Chromium。
+- **GSD / Get-Shit-Done**：spec-driven 的完整多 Agent 编排器（discuss → plan → execute，自己 spawn 子 agent），改 settings.json 并依赖 gsd-sdk。
+
+## 我们怎么用
+
+- 全 Claude 三角色；用一键脚本把节点技能 vendoring 进 `~/.claude/skills`（pin commit + allowlist + 安全 marker）。
+- **只装"节点技能"，不装任何 orchestrator**——Supervisor 自己就是编排器，orchestrator 会抢 PA 的工作流。
+- 主力：Matt Pocock 的 `codebase-design` / `domain-modeling` / `tdd` / `diagnosing-bugs` / `resolving-merge-conflicts` + Superpowers 独有的 `verification-before-completion` / `requesting-code-review` / `receiving-code-review`。
+- gstack 不进一键脚本（装 hook、改 settings、依赖重）；GSD 整体不用（与 Supervisor 职责重叠）。
+- PA 用 `codebase-design` 词汇审查驳回浅模块；`domain-modeling` 产 `CONTEXT.md`，项目缺则 spawn 自动提醒。
+
+---
+
 ## 治理铁律
 
 | 铁律 | 说明 |
@@ -20,7 +37,7 @@
 | 不改 CLAUDE.md / settings.json | 不破坏现有 per-role 隔离与 `--append-system-prompt-file` 注入 |
 | 不跑各工具自带的 setup/installer | 不用 `npx skills add`、`setup-matt-pocock-skills`、`gsd setup` 等 |
 | orchestrator 技能不进目录 | 靠"不放"，不靠"放了再禁" |
-| 纯 markdown 技能只 | 不引入需要运行时 SDK 或外部服务依赖的技能 |
+| 仅装纯 markdown 技能 | 不引入需要运行时 SDK 或外部服务依赖的技能 |
 
 ---
 
