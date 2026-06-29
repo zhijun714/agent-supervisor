@@ -53,6 +53,7 @@
 - 看板：跨 Room 任务状态、AI 用量统计
 - 代码工作区隔离：每个用户/团队的 `devDir` 隔离（容器 or 路径 namespace）
 - Room 访问权限：谁可以看/操作哪个 Room
+- **Agent 间通信对齐 A2A 标准**（Linux 基金会托管，150+ 组织参与）：Agent Card 能力发现 + JSON-RPC over HTTPS。现有自研 inbox（`HTTP POST /notify`）可升级为 A2A 标准协议，利于跨工具/跨团队互通。单机阶段非必需，团队化时再上。
 
 ---
 
@@ -62,7 +63,7 @@
 
 **主要工作：**
 - 并发同房间模型：多人同时操作同一个 Room（conflict resolution）
-- 沙箱隔离：每个租户的 PTY 在独立容器/VM 中运行
+- **沙箱隔离**（具体选型）：不可信生成代码默认 **microVM**（Firecracker / E2B / Blaxel，硬件级隔离，冷启动 150ms~2s）；或 **gVisor**（用户态内核，冷启动更友好、兼容性广）、**Kata Containers**。参考实践：Modal（gVisor）、Northflank（Kata+gVisor，月处理 200 万+ 隔离负载）。原则：跑不可信代码默认 microVM，威胁模型允许时才降到 gVisor/容器。
 - 配额与成本看板：按租户追踪 token 用量、费用分摊
 - 弹性伸缩：按并发房间数自动扩缩
 

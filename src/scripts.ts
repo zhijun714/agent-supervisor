@@ -5,26 +5,50 @@ import { CLI_PROFILES } from './cli-profiles.js'
 import { ROOT_DIR, ROOM_MEMORIES_DIR, PORT } from './config.js'
 import type { MemoryContext } from './types.js'
 
-export function readAiDocs(dir: string | null): string {
+function extractSummary(content: string): string {
+  const lines = content.split('\n')
+  if (lines[0]?.trim() === '---') {
+    for (let i = 1; i < Math.min(lines.length, 30); i++) {
+      if (lines[i]?.trim() === '---') break
+      const m = lines[i].match(/^description:\s*(.+)/)
+      if (m) return m[1].trim()
+    }
+  }
+  for (const line of lines.slice(0, 30)) {
+    const m = line.match(/^#{1,3}\s+(.+)/)
+    if (m) return m[1].trim()
+  }
+  for (const line of lines) {
+    const t = line.trim()
+    if (t && t !== '---') return t.length > 80 ? t.slice(0, 77) + '...' : t
+  }
+  return ''
+}
+
+function aiDocsManifest(dir: string | null): string {
   if (!dir) return ''
   try {
     const docsDir = join(dir, 'ai-docs')
-    return readdirSync(docsDir)
-      .filter(f => f.endsWith('.md'))
-      .map(f => `### ${f}\n\n${readFileSync(join(docsDir, f), 'utf8')}`)
-      .join('\n\n---\n\n')
+    const files = readdirSync(docsDir).filter(f => f.endsWith('.md'))
+    if (!files.length) return ''
+    const lines = files.map(f => {
+      const absPath = join(docsDir, f)
+      const summary = extractSummary(readFileSync(absPath, 'utf8'))
+      return summary ? `${absPath} — ${summary}` : absPath
+    })
+    return lines.join('\n') + '\n\n（需要细节时用 Read 读对应文件路径，以实际内容为准；本清单为 spawn 时快照，若 ai-docs/ 中途有新增或删改，可用 Glob/ls 重新列目录再 Read。）'
   } catch { return '' }
 }
 
 export function buildMemoryContext(roomId: string, archDir: string | null, devDir: string | null): MemoryContext {
   let roomMem = ''
   try { roomMem = readFileSync(join(ROOM_MEMORIES_DIR, `${roomId}.md`), 'utf8') } catch {}
-  const archDocs = readAiDocs(archDir)
-  const devDocs  = archDir === devDir ? archDocs : readAiDocs(devDir)
+  const archDocs = aiDocsManifest(archDir)
+  const devDocs  = archDir === devDir ? archDocs : aiDocsManifest(devDir)
   const block = (title: string, body: string) => body ? `## ${title}\n\n${body}` : ''
   const sharedDocs = archDir === devDir
-    ? [block('项目文档', archDocs)]
-    : [block('项目文档（架构师目录）', archDocs), block('项目文档（开发目录）', devDocs)]
+    ? [block('项目文档索引', archDocs)]
+    : [block('项目文档索引（架构师目录）', archDocs), block('项目文档索引（开发目录）', devDocs)]
   const shared = [block('Room 记忆', roomMem), ...sharedDocs].filter(Boolean).join('\n\n')
   const ctxReminder = devDir && !existsSync(join(devDir, 'CONTEXT.md'))
     ? block('📝 提醒', '本项目根目录无 CONTEXT.md（领域术语表）。涉及设计/命名时，请先用 domain-modeling 技能起一份种子 CONTEXT.md 再继续，避免术语漂移。')
@@ -32,7 +56,7 @@ export function buildMemoryContext(roomId: string, archDir: string | null, devDi
   return {
     archCtx: [shared, ctxReminder].filter(Boolean).join('\n\n'),
     devCtx:  [shared, ctxReminder].filter(Boolean).join('\n\n'),
-    qaCtx:   [block('Room 记忆', roomMem), block('项目文档（开发目录）', devDocs)].filter(Boolean).join('\n\n'),
+    qaCtx:   [block('Room 记忆', roomMem), block('项目文档索引（开发目录）', devDocs)].filter(Boolean).join('\n\n'),
   }
 }
 

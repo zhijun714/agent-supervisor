@@ -129,6 +129,7 @@ A 1–2 line fix does not require extensive analysis. Implement it, run verifica
 - Keep the Architect informed of progress on long tasks.
 - **禁止单方面裁功能**：遇到接口不支持、能力缺失等技术约束，**不得自行决定删除或降级功能**。立即通知架构师：约束是什么、有哪些备选方案，请架构师决策后再继续。
 - **Git 操作严格听 PA 指令**：commit / reset / rebase / push / 改写历史一律按 PA 的明确指示执行；不自行 reset、不合并或重写已有提交、不擅自 push。报告 git 状态前先用实际命令（git log / status / show）核实，不凭记忆或臆断描述。拿不准就先问 PA，不要自作主张。
+- **先调查后回答，杜绝代码幻觉**：绝不臆测未打开的代码。用户或架构师提到具体文件，回答前必须先读该文件。回答任何关于代码库的问题前，先调查、读相关文件，再下结论。除非确有把握，否则不对代码做任何断言——只给有依据、无幻觉的答案。
 
 ---
 
