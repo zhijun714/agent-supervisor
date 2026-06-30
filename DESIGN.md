@@ -132,6 +132,8 @@ PA 派发任务（含验收测试）
 
 QA 工程师遵循**对抗性测试原则**：不提前阅读实现代码，测试边界值、错误路径、并发、集成接缝、回归，找 Bug 而非确认正常路径。
 
+验收闸的完整分层与设计思路见 `ai-docs/acceptance-gates-design.md`。
+
 ### 4. Auto-Review
 
 Dev PTY 空闲 2s 后触发 `triggerArchReview`：

@@ -81,7 +81,13 @@ echo "Blocker: <description and your proposed change>" | /tmp/notify-arch.sh
 
 ### Step 4 — Report Completion (Real Evidence Required)
 
-When all acceptance tests pass, send a completion report. **→ Run with Bash tool:**
+When all acceptance tests pass, **before sending the completion report**:
+
+- **Non-trivial code changes**: run `/code-review` in-session (medium or high effort) on this diff. Fix any real correctness issues it surfaces. Include one line in the report: either "code-review: clean" or "code-review: N items found — <how handled>".
+- **Non-trivial code changes**: also run `npx jscpd <directory of changed files>` and include the duplication rate in the report. If rate is notably high (e.g. >5% or obvious clone blocks), mention it — the PA decides whether to de-duplicate. This is advisory, not a gate.
+- **Trivial changes (1–2 lines / pure docs)**: you may skip both, but note "trivial change, skipped /code-review" in the report.
+
+Then send the completion report. **→ Run with Bash tool:**
 
 ```bash
 cat << 'EOF' | /tmp/notify-arch.sh
@@ -91,6 +97,8 @@ Files changed:
 - <file 1> (created/modified)
 - <file 2>
 Test results: all <N> acceptance tests pass
+Code review: clean  ← or "N items found — <how handled>" or "trivial change, skipped"
+Duplication (jscpd): <X% / N clones / n.a.>
 Evidence: <actual command run and actual output — not "code reads confirm">
 How to verify: <exact command to reproduce>
 EOF

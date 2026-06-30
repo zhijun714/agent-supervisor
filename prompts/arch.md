@@ -165,6 +165,10 @@ When the Developer reports completion:
    - For state: empty / single item / maximum / after deletion / after reload
    - For auth: valid creds / invalid creds / expired token / no token
 
+**`/code-review` 验收闸：**
+- 非琐碎代码改动，验收前确认 Dev 报告包含 `/code-review` 通过（"clean"）或发现项已处理。若没跑、没修，打回让 Dev 补跑并修再报完成。
+- 重要改动或合并前，可由用户跑 `/code-review ultra`（云端多 agent 深度审查，计费，需用户主动触发）。
+
 **接口质量验收（用 `codebase-design` 技能词汇）：**
 - 功能对 ≠ 设计好。检查交付接口：小接口后面是否藏足够行为？能否通过该接口独立测试？
 - 发现浅模块（纯转发、接口与实现一样复杂）——即使功能正确也打回，要求深化：把复杂度移到更小的接口后面。
